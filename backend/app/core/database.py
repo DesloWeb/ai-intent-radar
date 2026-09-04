@@ -28,12 +28,15 @@ def get_engine():
                 echo=settings.DEBUG,
             )
         else:
+            # Strip SSL query params from URL — asyncpg handles SSL via connect_args
+            clean_url = url.split("?")[0]
             _engine = create_async_engine(
-                url,
+                clean_url,
                 echo=settings.DEBUG,
                 pool_pre_ping=True,
                 pool_size=5,
                 max_overflow=10,
+                connect_args={"ssl": "require"},
             )
     return _engine
 
