@@ -1,4 +1,5 @@
 """Authentication API endpoints."""
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -89,23 +90,20 @@ async def login(
     """Login with email and password."""
     from app.services.audit_service import audit_auth_event
     
-    # SEC-6: Brute-force protection using Redis
+    # SEC-6: Brute-force protection using Redis (2s timeout to avoid hanging)
+    r = None
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
-        )
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
         lockout_key = f"login_attempts:{payload.email.lower()}"
-        
-        attempts = await r.get(lockout_key)
+        attempts = await asyncio.wait_for(r.get(lockout_key), timeout=2.0)
         if attempts and int(attempts) >= 5:
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={"detail": "Too many failed attempts. Try again in 15 minutes."},
             )
+    except Exception:
+        r = None  # Redis unavailable, skip brute-force protection
     except Exception:
         r = None  # Redis unavailable, skip brute-force protection
 
@@ -118,8 +116,8 @@ async def login(
     if not user or not verify_password(payload.password, user.hashed_password) or not user.is_active:
         if r:
             try:
-                await r.incr(lockout_key)
-                await r.expire(lockout_key, 900)  # 15 minute window
+                await asyncio.wait_for(r.incr(lockout_key), timeout=2.0)
+                await asyncio.wait_for(r.expire(lockout_key, 900), timeout=2.0)
             except Exception:
                 pass
         # Audit failed login attempt
@@ -213,7 +211,10 @@ async def logout(
         exp = token_payload.get("exp", 0)
         ttl = max(0, exp - int(datetime.now(timezone.utc).timestamp()))
         if ttl > 0:
-            await r.setex(f"blocklist:{body.refresh_token}", ttl, "1")
+            await asyncio.wait_for(
+                r.setex(f"blocklist:{body.refresh_token}", ttl, "1"),
+                timeout=2.0,
+            )
     except Exception:
         pass  # If Redis unavailable, token expires naturally
 
@@ -251,3 +252,29 @@ async def update_user_role(
     target_user.role = role
     await db.flush()
     return target_user
+
+
+@router.post("/bootstrap-admin", status_code=200)
+async def bootstrap_admin(
+    email: str,
+    secret: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    One-time bootstrap: promote a user to admin.
+    Requires BOOTSTRAP_SECRET env var to be set.
+    Remove or disable this endpoint after first use.
+    """
+    import os
+    bootstrap_secret = os.getenv("BOOTSTRAP_SECRET", "")
+    if not bootstrap_secret or secret != bootstrap_secret:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = "admin"
+    await db.commit()
+    return {"message": f"{email} promoted to admin"}
