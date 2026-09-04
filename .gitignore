@@ -131,6 +131,8 @@ temp/
 .freebuff/
 memory.md
 SUMMARY.md
+PRODUCTION_READINESS.md
+SECURITY_REMAINING_FIXES.md
 
 # Environment variable examples — keep .env.example, ignore real .env files
 backend/.env
