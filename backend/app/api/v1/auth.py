@@ -252,29 +252,3 @@ async def update_user_role(
     target_user.role = role
     await db.flush()
     return target_user
-
-
-@router.post("/bootstrap-admin", status_code=200)
-async def bootstrap_admin(
-    email: str,
-    secret: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    One-time bootstrap: promote a user to admin.
-    Requires BOOTSTRAP_SECRET env var to be set.
-    Remove or disable this endpoint after first use.
-    """
-    import os
-    bootstrap_secret = os.getenv("BOOTSTRAP_SECRET", "")
-    if not bootstrap_secret or secret != bootstrap_secret:
-        raise HTTPException(status_code=403, detail="Invalid secret")
-
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.role = "admin"
-    await db.commit()
-    return {"message": f"{email} promoted to admin"}
