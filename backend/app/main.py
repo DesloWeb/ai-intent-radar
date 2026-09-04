@@ -15,8 +15,11 @@ from app.core.config import settings
 logging.basicConfig(level=logging.WARNING)
 honeypot_logger = logging.getLogger("honeypot")
 
-# SEC-11: Redis-backed rate limiter
-limiter = Limiter(key_func=get_remote_address, storage_uri=settings.REDIS_URL)
+# SEC-11: Rate limiter — use Redis if available, fall back to in-memory
+try:
+    limiter = Limiter(key_func=get_remote_address, storage_uri=settings.REDIS_URL)
+except Exception:
+    limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
