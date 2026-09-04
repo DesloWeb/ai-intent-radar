@@ -92,7 +92,12 @@ async def login(
     # SEC-6: Brute-force protection using Redis
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
         lockout_key = f"login_attempts:{payload.email.lower()}"
         
         attempts = await r.get(lockout_key)
@@ -198,7 +203,12 @@ async def logout(
     
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
         token_payload = decode_token(body.refresh_token)
         exp = token_payload.get("exp", 0)
         ttl = max(0, exp - int(datetime.now(timezone.utc).timestamp()))

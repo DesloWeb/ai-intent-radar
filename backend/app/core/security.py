@@ -82,7 +82,12 @@ async def get_current_user(
     # FIX-5: Check Redis blocklist for revoked tokens
     try:
         import redis.asyncio as aioredis
-        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        r = aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
         is_revoked = await r.get(f"blocklist:{credentials.credentials}")
         if is_revoked:
             raise HTTPException(
