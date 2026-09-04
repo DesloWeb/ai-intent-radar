@@ -176,6 +176,7 @@ async def ingest_hn(
         limit_stories=limit_stories,
         limit_comments_per_thread=limit_comments,
         dry_run=dry_run,
+        organization_id=user.organization_id,
     )
 
     # Audit HN ingestion

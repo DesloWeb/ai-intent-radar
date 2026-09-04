@@ -224,6 +224,7 @@ async def ingest_hn_signals(
     limit_comments_per_thread: int = 50,
     dry_run: bool = False,
     min_score: int = 1,
+    organization_id=None,
 ) -> dict:
     """
     Fetch and ingest intent signals from Hacker News.
@@ -338,7 +339,7 @@ async def ingest_hn_signals(
         async with get_session_factory()() as db:
             for stype, payload, label in signals_to_ingest:
                 try:
-                    await ingest_signal(db, payload)
+                    await ingest_signal(db, payload, organization_id=organization_id)
                     ingested += 1
                     logger.debug(f"Ingested [{stype}]: {label[:60]}")
                 except Exception as e:
