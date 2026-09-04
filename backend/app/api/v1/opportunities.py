@@ -33,8 +33,10 @@ async def list_opps(
     user: User = Depends(get_current_user),
 ):
     """List opportunities with filtering and pagination."""
+    # SEC-5: Scope by organization
     opportunities, total = await list_opportunities(
         db,
+        organization_id=user.organization_id,
         country_code=country_code,
         category=category,
         urgency=urgency,
@@ -58,7 +60,9 @@ async def get_opportunity(
     user: User = Depends(get_current_user),
 ):
     """Get a single opportunity with full details."""
-    opp = await get_opportunity_by_id(db, uuid.UUID(opportunity_id))
+    opp = await get_opportunity_by_id(
+        db, uuid.UUID(opportunity_id), organization_id=user.organization_id
+    )
     if not opp:
         raise HTTPException(status_code=404, detail="Opportunity not found")
     return opp

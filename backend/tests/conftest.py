@@ -13,8 +13,11 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.database import Base, get_db, override_engine
 from app.core.security import create_access_token, hash_password
-from app.main import app
+from app.main import app, limiter
 from app.models.models import Organization, User
+
+# Disable rate limiting for tests
+limiter.enabled = False
 
 
 # Use SQLite for tests
@@ -61,7 +64,7 @@ async def org(db: AsyncSession):
         is_demo=True,
     )
     db.add(org)
-    await db.commit()
+    await db.flush()
     return org
 
 

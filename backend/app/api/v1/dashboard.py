@@ -23,11 +23,14 @@ async def get_dashboard(
     user: User = Depends(get_current_user),
 ):
     """Get the main intelligence dashboard data."""
-    counts = await get_opportunity_counts(db)
+    # SEC-5: Scope all queries by organization
+    org_id = user.organization_id
+    counts = await get_opportunity_counts(db, organization_id=org_id)
 
     # Top opportunities (highest intent score)
     top_query = select(Opportunity).where(
-        Opportunity.status.notin_(["dismissed", "expired"])
+        Opportunity.organization_id == org_id,
+        Opportunity.status.notin_(["dismissed", "expired"]),
     )
     if country_code:
         top_query = top_query.where(Opportunity.country_code == country_code)
@@ -48,6 +51,7 @@ async def get_dashboard(
         )
         .where(
             and_(
+                Opportunity.organization_id == org_id,
                 Opportunity.created_at >= three_days,
                 Opportunity.intent_score >= 0.5,
             )
@@ -79,7 +83,12 @@ async def get_dashboard(
             Opportunity.country_code,
             func.count(Opportunity.id).label("count"),
         )
-        .where(Opportunity.created_at >= week_ago)
+        .where(
+            and_(
+                Opportunity.organization_id == org_id,
+                Opportunity.created_at >= week_ago,
+            )
+        )
         .group_by(Opportunity.category, Opportunity.country_code)
         .order_by(func.count(Opportunity.id).desc())
         .limit(5)
@@ -111,6 +120,7 @@ async def get_dashboard(
             func.count(Opportunity.id).label("total"),
             func.avg(Opportunity.intent_score).label("avg_intent"),
         )
+        .where(Opportunity.organization_id == org_id)
         .group_by(Opportunity.country_code)
     )
     country_result = await db.execute(country_query)

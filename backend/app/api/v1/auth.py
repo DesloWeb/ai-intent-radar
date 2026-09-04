@@ -1,7 +1,9 @@
 """Authentication API endpoints."""
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +16,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.config import settings
 from app.models.models import Organization, User
 from app.schemas.schemas import (
     RefreshTokenRequest,
@@ -23,12 +26,19 @@ from app.schemas.schemas import (
     UserResponse,
 )
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from app.main import limiter
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("3/minute")
+async def register(request: Request, payload: UserCreate, db: AsyncSession = Depends(get_db)):
     """Register a new user."""
+    from app.services.audit_service import audit_auth_event
+    
     # Check existing
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none():
@@ -37,34 +47,31 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Email already registered",
         )
 
-    # Find or create organization
-    org = None
-    if payload.organization_slug:
-        result = await db.execute(
-            select(Organization).where(
-                Organization.slug == payload.organization_slug
-            )
-        )
-        org = result.scalar_one_or_none()
-
-    if not org:
-        slug = payload.organization_slug or str(uuid.uuid4())[:8]
-        org = Organization(
-            name=payload.organization_slug or f"Org-{slug}",
-            slug=slug,
-        )
-        db.add(org)
-        await db.flush()
+    # Always create a new organization for self-registration
+    # (joining existing orgs requires invite system - future feature)
+    slug = str(uuid.uuid4())[:8]
+    org = Organization(
+        name=f"Org-{slug}",
+        slug=slug,
+    )
+    db.add(org)
+    await db.flush()
 
     user = User(
         organization_id=org.id,
         email=payload.email,
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
-        role="admin",
+        role="viewer",  # SEC-2: New users default to viewer, not admin
     )
     db.add(user)
     await db.flush()
+
+    # Audit registration
+    client_ip = request.client.host if request.client else None
+    await audit_auth_event(
+        db, "auth:register", user.id, org.id, client_ip, {"email": payload.email}
+    )
 
     return TokenResponse(
         access_token=create_access_token(user.id, user.role),
@@ -73,21 +80,74 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(
+    request: Request,
+    payload: UserLogin,
+    db: AsyncSession = Depends(get_db),
+):
     """Login with email and password."""
+    from app.services.audit_service import audit_auth_event
+    
+    # SEC-6: Brute-force protection using Redis
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        lockout_key = f"login_attempts:{payload.email.lower()}"
+        
+        attempts = await r.get(lockout_key)
+        if attempts and int(attempts) >= 5:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={"detail": "Too many failed attempts. Try again in 15 minutes."},
+            )
+    except Exception:
+        r = None  # Redis unavailable, skip brute-force protection
+
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(payload.password, user.hashed_password):
+    client_ip = request.client.host if request.client else None
+
+    # SEC-7: Always return same error for invalid credentials (prevents account enumeration)
+    if not user or not verify_password(payload.password, user.hashed_password) or not user.is_active:
+        if r:
+            try:
+                await r.incr(lockout_key)
+                await r.expire(lockout_key, 900)  # 15 minute window
+            except Exception:
+                pass
+        # Audit failed login attempt
+        if user:
+            await audit_auth_event(
+                db, "auth:login_failure", user.id, user.organization_id, client_ip
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    if not user.is_active:
+
+    # SEC-21: Check email verification
+    # In production, set REQUIRE_EMAIL_VERIFICATION=true to enforce
+    import os
+    require_verification = os.getenv("REQUIRE_EMAIL_VERIFICATION", "false").lower() == "true"
+    if require_verification and not user.is_email_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated",
+            detail="Email not verified. Please check your inbox for the verification link.",
         )
+
+    # Clear counter on success
+    if r:
+        try:
+            await r.delete(lockout_key)
+        except Exception:
+            pass
+
+    # Audit successful login
+    await audit_auth_event(
+        db, "auth:login_success", user.id, user.organization_id, client_ip
+    )
 
     return TokenResponse(
         access_token=create_access_token(user.id, user.role),
@@ -124,3 +184,60 @@ async def refresh_token(body: RefreshTokenRequest, db: AsyncSession = Depends(ge
 async def get_me(user: User = Depends(get_current_user)):
     """Get current user profile."""
     return user
+
+
+@router.post("/logout", status_code=204)
+async def logout(
+    body: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    request: Request = None,
+):
+    """Invalidate the refresh token (SEC-8)."""
+    from app.services.audit_service import audit_auth_event
+    
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        token_payload = decode_token(body.refresh_token)
+        exp = token_payload.get("exp", 0)
+        ttl = max(0, exp - int(datetime.now(timezone.utc).timestamp()))
+        if ttl > 0:
+            await r.setex(f"blocklist:{body.refresh_token}", ttl, "1")
+    except Exception:
+        pass  # If Redis unavailable, token expires naturally
+
+    # Audit logout
+    client_ip = request.client.host if request and request.client else None
+    await audit_auth_event(
+        db, "auth:logout", user.id, user.organization_id, client_ip
+    )
+
+    return Response(status_code=204)
+
+
+@router.put("/users/{user_id}/role", response_model=UserResponse)
+async def update_user_role(
+    user_id: str,
+    role: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update user role (admin only). SEC-2: Manual role promotion."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
+    if role not in ["admin", "analyst", "viewer"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role",
+        )
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    target_user.role = role
+    await db.flush()
+    return target_user

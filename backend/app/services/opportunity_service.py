@@ -22,6 +22,9 @@ async def list_opportunities(
 ) -> Tuple[List[Opportunity], int]:
     """List opportunities with filtering and pagination."""
     filters = []
+    # SEC-5: Always filter by organization if provided
+    if organization_id:
+        filters.append(Opportunity.organization_id == organization_id)
     if country_code:
         filters.append(Opportunity.country_code == country_code)
     if category:
@@ -58,23 +61,38 @@ async def list_opportunities(
 
 
 async def get_opportunity_by_id(
-    db: AsyncSession, opportunity_id: uuid.UUID
+    db: AsyncSession,
+    opportunity_id: uuid.UUID,
+    organization_id: Optional[uuid.UUID] = None,
 ) -> Optional[Opportunity]:
-    """Get a single opportunity by ID."""
+    """Get a single opportunity by ID, scoped by organization."""
+    filters = [Opportunity.id == opportunity_id]
+    if organization_id:
+        filters.append(Opportunity.organization_id == organization_id)
     result = await db.execute(
-        select(Opportunity).where(Opportunity.id == opportunity_id)
+        select(Opportunity).where(and_(*filters))
     )
     return result.scalar_one_or_none()
 
 
-async def get_opportunity_counts(db: AsyncSession) -> dict:
+async def get_opportunity_counts(
+    db: AsyncSession,
+    organization_id: Optional[uuid.UUID] = None,
+) -> dict:
     """Get opportunity counts by various dimensions."""
-    total = (await db.execute(select(func.count(Opportunity.id)))).scalar() or 0
+    # SEC-5: Scope by organization if provided
+    base_filter = [Opportunity.organization_id == organization_id] if organization_id else []
+    
+    total = (
+        await db.execute(
+            select(func.count(Opportunity.id)).where(and_(*base_filter) if base_filter else True)
+        )
+    ).scalar() or 0
 
     high_priority = (
         await db.execute(
             select(func.count(Opportunity.id)).where(
-                Opportunity.intent_score >= 0.7
+                and_(*base_filter, Opportunity.intent_score >= 0.7) if base_filter else Opportunity.intent_score >= 0.7
             )
         )
     ).scalar() or 0
@@ -84,7 +102,7 @@ async def get_opportunity_counts(db: AsyncSession) -> dict:
     new_this_week = (
         await db.execute(
             select(func.count(Opportunity.id)).where(
-                Opportunity.created_at >= week_ago
+                and_(*base_filter, Opportunity.created_at >= week_ago) if base_filter else Opportunity.created_at >= week_ago
             )
         )
     ).scalar() or 0
@@ -95,6 +113,7 @@ async def get_opportunity_counts(db: AsyncSession) -> dict:
             Opportunity.country_code,
             func.count(Opportunity.id).label("count"),
         )
+        .where(and_(*base_filter) if base_filter else True)
         .group_by(Opportunity.country_code)
     )
     country_result = await db.execute(country_query)
@@ -109,6 +128,7 @@ async def get_opportunity_counts(db: AsyncSession) -> dict:
             Opportunity.urgency,
             func.count(Opportunity.id).label("count"),
         )
+        .where(and_(*base_filter) if base_filter else True)
         .group_by(Opportunity.urgency)
     )
     urgency_result = await db.execute(urgency_query)
@@ -127,10 +147,7 @@ async def get_opportunity_counts(db: AsyncSession) -> dict:
         count = (
             await db.execute(
                 select(func.count(Opportunity.id)).where(
-                    and_(
-                        Opportunity.intent_score >= low,
-                        Opportunity.intent_score < high,
-                    )
+                    and_(*base_filter, Opportunity.intent_score >= low, Opportunity.intent_score < high) if base_filter else and_(Opportunity.intent_score >= low, Opportunity.intent_score < high)
                 )
             )
         ).scalar() or 0

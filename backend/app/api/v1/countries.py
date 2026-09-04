@@ -12,7 +12,10 @@ router = APIRouter(prefix="/countries", tags=["Countries"])
 
 
 @router.get("", response_model=list[CountryResponse])
-async def list_countries(db: AsyncSession = Depends(get_db)):
+async def list_countries(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),  # SEC-15: Require authentication
+):
     """List all configured countries."""
     result = await db.execute(select(Country).order_by(Country.name))
     return list(result.scalars().all())

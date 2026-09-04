@@ -131,6 +131,7 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False)  # SEC-21
 
     # Relationships
     organization: Mapped["Organization"] = relationship(back_populates="users")
@@ -157,6 +158,9 @@ class Signal(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
     )
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     source_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -187,6 +191,7 @@ class Signal(Base, TimestampMixin):
     )
 
     # Relationships
+    organization: Mapped["Organization"] = relationship()
     opportunities: Mapped[list["Opportunity"]] = relationship(
         back_populates="signal"
     )
@@ -195,6 +200,7 @@ class Signal(Base, TimestampMixin):
         Index("ix_signals_source_source_id", "source", "source_id", unique=True),
         Index("ix_signals_country_status", "country_code", "status"),
         Index("ix_signals_scores", "intent_score", "confidence"),
+        Index("ix_signals_org", "organization_id"),
     )
 
 
@@ -204,6 +210,9 @@ class Opportunity(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
     )
     signal_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("signals.id"), nullable=False
@@ -245,6 +254,7 @@ class Opportunity(Base, TimestampMixin):
     )
 
     # Relationships
+    organization: Mapped["Organization"] = relationship()
     signal: Mapped["Signal"] = relationship(back_populates="opportunities")
     matches: Mapped[list["ProviderMatch"]] = relationship(
         back_populates="opportunity"
@@ -258,11 +268,12 @@ class Opportunity(Base, TimestampMixin):
         Index("ix_opps_scores", "intent_score", "confidence"),
         Index("ix_opps_status_urgency", "status", "urgency"),
         Index("ix_opps_deadline", "deadline"),
+        Index("ix_opps_org", "organization_id"),
     )
 
 
 class Provider(Base, TimestampMixin):
-    """Businesses/providers that can act on opportunities."""
+    """Businesses and individuals that can act on opportunities."""
     __tablename__ = "providers"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -271,20 +282,43 @@ class Provider(Base, TimestampMixin):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
     )
+    # Type: "business" or "individual"
+    provider_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="business"
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
+
+    # Business fields
     services: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     categories: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
-    locations: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
-    country_codes: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     min_project_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_project_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Individual fields
+    skills: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
+    hourly_rate_min: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hourly_rate_max: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    availability: Mapped[str] = mapped_column(
+        String(50), nullable=True
+    )  # "full_time", "part_time", "contract", "weekends"
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    profile_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Shared fields
+    locations: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
+    country_codes: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
     organization: Mapped["Organization"] = relationship(back_populates="providers")
     matches: Mapped[list["ProviderMatch"]] = relationship(
         back_populates="provider"
+    )
+
+    __table_args__ = (
+        Index("ix_providers_type", "provider_type"),
+        Index("ix_providers_org_type", "organization_id", "provider_type"),
     )
 
 

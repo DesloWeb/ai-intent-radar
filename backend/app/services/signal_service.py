@@ -42,7 +42,11 @@ def normalize_signal(raw_signal: dict) -> dict:
     return normalized
 
 
-async def ingest_signal(db: AsyncSession, raw_signal: dict) -> Signal:
+async def ingest_signal(
+    db: AsyncSession,
+    raw_signal: dict,
+    organization_id: uuid.UUID = None,
+) -> Signal:
     """Ingest a new signal: normalize, deduplicate, and store."""
     normalized = normalize_signal(raw_signal)
 
@@ -61,6 +65,7 @@ async def ingest_signal(db: AsyncSession, raw_signal: dict) -> Signal:
         return existing_signal
 
     signal = Signal(
+        organization_id=organization_id,
         source=normalized["source"],
         source_id=normalized["source_id"],
         country_code=normalized["country_code"],

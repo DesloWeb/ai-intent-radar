@@ -178,19 +178,26 @@ class ApiClient {
   }
 
   // Providers
-  async getProviders() {
-    return this.request<import('../types').Provider[]>('/providers');
+  async getProviders(providerType?: string) {
+    const params = providerType ? `?provider_type=${providerType}` : '';
+    return this.request<import('../types').Provider[]>(`/providers${params}`);
   }
 
   async createProvider(data: {
+    provider_type?: string;
     name: string;
     description?: string;
     services?: string[];
     categories?: string[];
+    skills?: string[];
     locations?: string[];
     country_codes?: string[];
     min_project_value?: number;
     max_project_value?: number;
+    hourly_rate_min?: number;
+    hourly_rate_max?: number;
+    availability?: string;
+    profile_url?: string;
   }) {
     return this.request<import('../types').Provider>('/providers', {
       method: 'POST',

@@ -7,8 +7,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: radar
-    ports:
-      - "5432:5432"
+    # SEC-4: Removed host port mapping - only accessible via Docker network
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +18,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # SEC-4: Removed host port mapping - only accessible via Docker network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -31,21 +29,21 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/radar
       REDIS_URL: redis://redis:6379/0
       AI_PROVIDER: mock
-      SECRET_KEY: dev-secret-key
-      JWT_SECRET_KEY: dev-jwt-secret
+      # SEC-3: Secrets from environment variables, not hardcoded
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
 
   worker:
     build:
@@ -56,15 +54,34 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/radar
       REDIS_URL: redis://redis:6379/0
       AI_PROVIDER: mock
-      SECRET_KEY: dev-secret-key
-      JWT_SECRET_KEY: dev-jwt-secret
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: >
+      sh -c "while true; do
+        python -m app.workers.worker hn_and_process;
+        sleep 10800;
+      done"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/radar
+      REDIS_URL: redis://redis:6379/0
+      AI_PROVIDER: mock
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -76,8 +93,6 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
     depends_on:
       - backend
-    volumes:
-      - ./frontend/src:/app/src
 
 volumes:
   pgdata:

@@ -12,7 +12,7 @@ from app.services.signal_service import (
 )
 from app.services.ai_provider import MockAIProvider
 from app.services.intelligence_pipeline import process_signal
-from app.services.provider_matching import _calculate_match
+from app.services.provider_matching import _calculate_business_match
 from app.models.models import Opportunity, Provider
 
 
@@ -95,20 +95,24 @@ async def test_mock_extract_opportunity():
 
 
 @pytest.mark.asyncio
-async def test_process_signal_end_to_end(db: AsyncSession):
+async def test_process_signal_end_to_end(db: AsyncSession, org):
     """Test the full pipeline: signal → classify → extract → validate → opportunity."""
-    # Create a signal
-    signal = await ingest_signal(db, {
-        "source": "bpp",
-        "source_id": "TEST-001",
-        "country_code": "NG",
-        "title": "Ministry of Works Road Infrastructure Procurement",
-        "description": (
-            "The Federal Ministry of Works invites qualified contractors "
-            "for road infrastructure procurement. Budget: ₦45 billion."
-        ),
-        "raw_data": {},
-    })
+    # Create a signal with organization_id
+    signal = await ingest_signal(
+        db,
+        {
+            "source": "bpp",
+            "source_id": "TEST-001",
+            "country_code": "NG",
+            "title": "Ministry of Works Road Infrastructure Procurement",
+            "description": (
+                "The Federal Ministry of Works invites qualified contractors "
+                "for road infrastructure procurement. Budget: ₦45 billion."
+            ),
+            "raw_data": {},
+        },
+        organization_id=org.id,
+    )
     assert signal.status == SignalStatus.RAW
 
     # Process through pipeline
@@ -133,16 +137,20 @@ async def test_process_signal_end_to_end(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_process_low_intent_signal_rejected(db: AsyncSession):
+async def test_process_low_intent_signal_rejected(db: AsyncSession, org):
     """Test that low-intent signals are rejected."""
-    signal = await ingest_signal(db, {
-        "source": "test",
-        "source_id": "LOW-001",
-        "country_code": "NG",
-        "title": "hello",
-        "description": "just a greeting",
-        "raw_data": {},
-    })
+    signal = await ingest_signal(
+        db,
+        {
+            "source": "test",
+            "source_id": "LOW-001",
+            "country_code": "NG",
+            "title": "hello",
+            "description": "just a greeting",
+            "raw_data": {},
+        },
+        organization_id=org.id,
+    )
 
     result = await process_signal(db, signal)
     assert result is not None
@@ -154,7 +162,9 @@ async def test_process_low_intent_signal_rejected(db: AsyncSession):
 
 def test_provider_match_strong():
     """Test matching with a strong provider."""
+    import uuid as uuid_mod
     opp = Opportunity(
+        organization_id=uuid_mod.uuid4(),
         signal_id=None,  # Not needed for this test
         country_code="NG",
         title="Tech Project",
@@ -179,7 +189,7 @@ def test_provider_match_strong():
         max_project_value=50000000,
     )
 
-    score = _calculate_match(opp, provider)
+    score = _calculate_business_match(opp, provider)
     assert score["service_fit"] >= 0.5
     assert score["geographic_fit"] >= 0.5
     assert score["total_score"] > 0.3
@@ -188,7 +198,9 @@ def test_provider_match_strong():
 
 def test_provider_match_weak():
     """Test matching with a weak provider."""
+    import uuid as uuid_mod
     opp = Opportunity(
+        organization_id=uuid_mod.uuid4(),
         signal_id=None,
         country_code="US",
         title="Highway Construction",
@@ -213,7 +225,7 @@ def test_provider_match_weak():
         max_project_value=10000000,
     )
 
-    score = _calculate_match(opp, provider)
+    score = _calculate_business_match(opp, provider)
     assert score["total_score"] < 0.3
 
 
@@ -286,8 +298,26 @@ async def test_list_opportunities_api(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_countries_api(client: AsyncClient):
-    """Test countries endpoint."""
-    response = await client.get("/api/v1/countries")
+    """Test countries endpoint (requires auth)."""
+    # Register and login first
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "country@test.com",
+            "password": "password123",
+            "full_name": "Country User",
+        },
+    )
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "country@test.com", "password": "password123"},
+    )
+    token = login.json()["access_token"]
+
+    response = await client.get(
+        "/api/v1/countries",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)

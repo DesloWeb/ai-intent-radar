@@ -78,6 +78,22 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
+
+    # FIX-5: Check Redis blocklist for revoked tokens
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        is_revoked = await r.get(f"blocklist:{credentials.credentials}")
+        if is_revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Redis unavailable, skip blocklist check
+
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
@@ -93,9 +109,10 @@ def require_role(*allowed_roles: str):
 
     async def _check(user: User = Depends(get_current_user)) -> User:
         if user.role not in allowed_roles:
+            # SEC-12: Don't reveal user's role or required roles
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{user.role}' not authorized. Required: {allowed_roles}",
+                detail="Insufficient permissions",
             )
         return user
 

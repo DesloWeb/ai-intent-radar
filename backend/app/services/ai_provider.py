@@ -16,16 +16,31 @@ class MockAIProvider:
 
         # Intent keywords with weights
         high_intent = [
+            # Formal procurement
             "procurement", "rfp", "rfq", "tender", "solicitation",
             "request for proposal", "bid", "contract", "award",
             "infrastructure", "construction", "technology", "digital",
             "supply", "equipment", "services", "consulting",
             "federal", "department", "agency", "government", "ministry",
+            # Conversational buying intent
+            "looking for", "need a", "need an", "searching for",
+            "anyone recommend", "can anyone suggest", "seeking",
+            "hiring", "want to hire", "looking to hire",
+            "accepting proposals", "taking applications",
+            "want to build", "planning to build",
+            "about to launch", "about to open", "about to start",
+            "ready to", "going to need", "will need",
         ]
         medium_intent = [
             "opportunity", "project", "development", "investment",
             "partnership", "growth", "expansion", "reform", "plan",
             "strategy", "budget", "allocation", "funding",
+            # Softer conversational signals
+            "anyone know", "recommendations", "suggestions",
+            "considering", "thinking about", "exploring",
+            "interested in", "open to", "would love",
+            "help with", "assist with", "support with",
+            "freelancer", "contractor", "consultant", "specialist",
         ]
 
         high_count = sum(1 for w in high_intent if w in combined)
@@ -73,7 +88,11 @@ class MockAIProvider:
                 detected_category = cat
 
         # Urgency detection
-        urgent_words = ["urgent", "immediate", "asap", "deadline", "expiring", "quick"]
+        urgent_words = [
+            "urgent", "immediate", "asap", "deadline", "expiring", "quick",
+            "today", "this week", "right away", "need now", "time sensitive",
+            "closing soon", "limited time", "last chance",
+        ]
         urgency = "low"
         if any(w in combined for w in urgent_words):
             urgency = "high"

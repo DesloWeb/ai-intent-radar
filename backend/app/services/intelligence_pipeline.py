@@ -131,6 +131,7 @@ def _create_opportunity_from_signal(
         evidence = [evidence]
 
     opportunity = Opportunity(
+        organization_id=signal.organization_id,  # SEC-5: Inherit org from signal
         signal_id=signal.id,
         country_code=signal.country_code,
         title=signal.title,

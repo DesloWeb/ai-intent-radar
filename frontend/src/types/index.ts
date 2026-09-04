@@ -77,14 +77,24 @@ export interface OpportunityListResponse {
 export interface Provider {
   id: string;
   organization_id: string;
+  provider_type: 'business' | 'individual';
   name: string;
   description: string | null;
+  // Business fields
   services: string[];
   categories: string[];
-  locations: string[];
-  country_codes: string[];
   min_project_value: number | null;
   max_project_value: number | null;
+  // Individual fields
+  skills: string[];
+  hourly_rate_min: number | null;
+  hourly_rate_max: number | null;
+  availability: 'full_time' | 'part_time' | 'contract' | 'weekends' | null;
+  verified: boolean;
+  profile_url: string | null;
+  // Shared
+  locations: string[];
+  country_codes: string[];
   is_active: boolean;
   created_at: string;
 }

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AnyHttpUrl, BaseModel, EmailStr, Field
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +39,7 @@ class UserResponse(BaseModel):
     role: str
     organization_id: uuid.UUID
     is_active: bool
+    is_email_verified: bool  # SEC-21
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -71,11 +72,11 @@ class OrganizationResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SignalCreate(BaseModel):
-    source: str
-    source_id: Optional[str] = None
-    country_code: str
-    title: str
-    description: str
+    source: str = Field(max_length=100)
+    source_id: Optional[str] = Field(default=None, max_length=255)
+    country_code: str = Field(min_length=2, max_length=2)
+    title: str = Field(min_length=1, max_length=500)
+    description: str = Field(min_length=1, max_length=10000)
     raw_data: Optional[Dict] = {}
 
 
@@ -150,27 +151,46 @@ class OpportunityFilter(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ProviderCreate(BaseModel):
+    provider_type: str = Field(default="business", pattern="^(business|individual)$")
     name: str = Field(min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=2000)
+    # Business fields
     services: List[str] = []
     categories: List[str] = []
-    locations: List[str] = []
-    country_codes: List[str] = []
     min_project_value: Optional[float] = None
     max_project_value: Optional[float] = None
+    # Individual fields
+    skills: List[str] = []
+    hourly_rate_min: Optional[float] = None
+    hourly_rate_max: Optional[float] = None
+    availability: Optional[str] = Field(
+        default=None,
+        pattern="^(full_time|part_time|contract|weekends)?$"
+    )
+    profile_url: Optional[AnyHttpUrl] = None
+    # Shared
+    locations: List[str] = []
+    country_codes: List[str] = []
 
 
 class ProviderResponse(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
+    provider_type: str
     name: str
     description: Optional[str] = None
     services: Union[List, Dict]
     categories: Union[List, Dict]
+    skills: Union[List, Dict]
     locations: Union[List, Dict]
     country_codes: Union[List, Dict]
     min_project_value: Optional[float] = None
     max_project_value: Optional[float] = None
+    hourly_rate_min: Optional[float] = None
+    hourly_rate_max: Optional[float] = None
+    availability: Optional[str] = None
+    verified: bool
+    profile_url: Optional[str] = None  # Stored as string, validated on input
     is_active: bool
     created_at: datetime
 
@@ -204,7 +224,7 @@ class FeedbackCreate(BaseModel):
     feedback_type: str = Field(
         pattern="^(saved|dismissed|contacted|won|lost|flagged)$"
     )
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
     outcome_value: Optional[float] = None
 
 

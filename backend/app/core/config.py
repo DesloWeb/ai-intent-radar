@@ -40,6 +40,19 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
+    @classmethod
+    def get_cors_origins(cls) -> list[str]:
+        """Get CORS origins from env or defaults."""
+        import os
+        import json
+        env_val = os.getenv("CORS_ORIGINS")
+        if env_val:
+            try:
+                return json.loads(env_val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return ["http://localhost:3000", "http://localhost:8000"]
+
     # Data Sources
     SAM_GOV_API_KEY: Optional[str] = None
     ENABLED_COUNTRIES: list[str] = ["US"]

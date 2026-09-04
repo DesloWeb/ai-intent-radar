@@ -91,20 +91,95 @@ DEMO_SIGNALS = [
         ),
         "raw_data": {"source_url": "https://sam.gov/opp/2024-003"},
     },
+    # Nigeria signals
+    {
+        "source": "bpp_nigeria",
+        "source_id": "NG-BPP-2024-001",
+        "country_code": "NG",
+        "title": "Federal Ministry of Works Road Infrastructure Development",
+        "description": (
+            "Federal Ministry of Works issued tender for road infrastructure "
+            "development across Abuja-Kaduna corridor. Budget: N45.2 billion. "
+            "Timeline: 18 months. Requirements: construction, engineering, "
+            "materials supply, project management."
+        ),
+        "raw_data": {"source_url": "https://bpp.gov.ng/2024/fmw-001"},
+    },
+    {
+        "source": "lagos_state",
+        "source_id": "NG-LAG-2024-001",
+        "country_code": "NG",
+        "title": "Lagos State Technology Hub Construction",
+        "description": (
+            "Lagos State Government announced plans to construct a N50B "
+            "technology hub in Victoria Island. The project includes "
+            "infrastructure, cloud services, and cybersecurity requirements. "
+            "Partnerships sought for technology infrastructure."
+        ),
+        "raw_data": {"source_url": "https://lagosstate.gov.ng/tech-hub-2024"},
+    },
+    {
+        "source": "nnpc",
+        "source_id": "NG-NNPC-2024-001",
+        "country_code": "NG",
+        "title": "NNPC Healthcare Equipment Procurement",
+        "description": (
+            "Nigerian National Petroleum Corporation announces procurement "
+            "of healthcare equipment for staff clinics across operations. "
+            "Budget: N12.5 billion. Requirements: medical devices, "
+            "pharmaceuticals, facility management."
+        ),
+        "raw_data": {"source_url": "https://nnpcgroup.com/healthcare-2024"},
+    },
+    {
+        "source": "fmard",
+        "source_id": "NG-FMARD-2024-001",
+        "country_code": "NG",
+        "title": "Abuja Agricultural Modernization Project",
+        "description": (
+            "Federal Ministry of Agriculture announces modernization project "
+            "for Abuja agricultural zone. Budget: N28 billion. "
+            "Seeking partners for: irrigation systems, processing facilities, "
+            "cold chain logistics, farm mechanization."
+        ),
+        "raw_data": {"source_url": "https://fmard.gov.ng/agri-2024"},
+    },
+    {
+        "source": "cbn",
+        "source_id": "NG-CBN-2024-001",
+        "country_code": "NG",
+        "title": "CBN Digital Financial Infrastructure Initiative",
+        "description": (
+            "Central Bank of Nigeria announces digital financial infrastructure "
+            "initiative. Budget: N35 billion. Requirements: payment gateway "
+            "development, cybersecurity infrastructure, fintech integration, "
+            "compliance systems."
+        ),
+        "raw_data": {"source_url": "https://cbn.gov.ng/digital-infra-2024"},
+    },
 ]
 
 
 async def seed():
-    """Seed the database with demo data."""
+    """Seed the database with demo data (idempotent)."""
+    from sqlalchemy import select
+
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with get_session_factory()() as db:
+        # Check if already seeded
+        result = await db.execute(select(Organization).limit(1))
+        existing = result.scalar_one_or_none()
+        if existing:
+            print("Database already seeded. Skipping.")
+            return
+
         # Create demo organization
         org = Organization(
             name="Demo Corp",
             slug="demo-corp",
-            enabled_countries=["US"],
+            enabled_countries=["US", "NG"],
             is_demo=True,
         )
         db.add(org)
@@ -128,8 +203,8 @@ async def seed():
             description="Full-service technology and consulting company",
             services=["cloud_migration", "cybersecurity", "software_development", "consulting"],
             categories=["technology", "infrastructure", "energy"],
-            locations=["New York", "Washington DC", "San Francisco"],
-            country_codes=["US"],
+            locations=["New York", "Washington DC", "San Francisco", "Lagos", "Abuja"],
+            country_codes=["US", "NG"],
             min_project_value=50000,
             max_project_value=50000000,
         )
@@ -138,7 +213,7 @@ async def seed():
 
         # Ingest sample signals
         for signal_data in DEMO_SIGNALS:
-            signal = await ingest_signal(db, signal_data)
+            signal = await ingest_signal(db, signal_data, organization_id=org.id)
 
         await db.commit()
         print(f"Seeded: 1 org, 1 user, 1 provider, {len(DEMO_SIGNALS)} signals")
