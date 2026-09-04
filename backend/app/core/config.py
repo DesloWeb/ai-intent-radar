@@ -37,21 +37,8 @@ class Settings(BaseSettings):
     MIN_CONFIDENCE: float = 0.4
     HIGH_PRIORITY_THRESHOLD: float = 0.7
 
-    # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
-
-    @classmethod
-    def get_cors_origins(cls) -> list[str]:
-        """Get CORS origins from env or defaults."""
-        import os
-        import json
-        env_val = os.getenv("CORS_ORIGINS")
-        if env_val:
-            try:
-                return json.loads(env_val)
-            except (json.JSONDecodeError, TypeError):
-                pass
-        return ["http://localhost:3000", "http://localhost:8000"]
+    # CORS — comma-separated string, e.g. "https://app.vercel.app,https://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     # Data Sources
     SAM_GOV_API_KEY: Optional[str] = None
