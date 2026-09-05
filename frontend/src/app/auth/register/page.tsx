@@ -91,6 +91,15 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
+          <p className="text-center text-xs text-gray-400 mt-3">
+            By registering you agree to our{' '}
+            <Link href="/privacy" className="underline hover:text-gray-600">Privacy Policy</Link>
+          </p>
+          <div className="mt-4 flex justify-center gap-4 text-xs text-gray-400">
+            <Link href="/about" className="hover:text-gray-600">About</Link>
+            <Link href="/contact" className="hover:text-gray-600">Contact</Link>
+            <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
+          </div>
         </div>
       </div>
     </div>
