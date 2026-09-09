@@ -13,7 +13,7 @@ import { UrgencyBadge } from '@/components/ui/UrgencyBadge';
 import { CountryFlag } from '@/components/ui/CountryFlag';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ContactModal } from '@/components/ui/ContactModal';
-import { Target, Save, X, Phone, ChevronLeft, ChevronRight, CheckCircle, ExternalLink } from 'lucide-react';
+import { Target, Save, X, Phone, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { Opportunity, OpportunityListResponse } from '@/types';
 
 export default function OpportunitiesPage() {
@@ -196,22 +196,6 @@ export default function OpportunitiesPage() {
                     </p>
                   )}
                 </div>
-
-                {/* View source link */}
-                {opp.source_url && (
-                  <div className="px-4 pb-3">
-                    <a
-                      href={opp.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-radar-600 hover:text-radar-700 transition-colors"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      View original source
-                    </a>
-                  </div>
-                )}
 
                 {/* Action buttons */}
                 <div className="flex border-t border-gray-100">
