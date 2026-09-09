@@ -155,6 +155,9 @@ class ProviderCreate(BaseModel):
     provider_type: str = Field(default="business", pattern="^(business|individual)$")
     name: str = Field(min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
+    # Contact
+    email: Optional[str] = Field(default=None, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)
     # Business fields
     services: List[str] = []
     categories: List[str] = []
@@ -180,6 +183,8 @@ class ProviderResponse(BaseModel):
     provider_type: str
     name: str
     description: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     services: Union[List, Dict]
     categories: Union[List, Dict]
     skills: Union[List, Dict]

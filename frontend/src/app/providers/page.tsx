@@ -12,7 +12,7 @@ import { CountryFlag } from '@/components/ui/CountryFlag';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Users, Plus, X, MapPin, Briefcase, User, BadgeCheck,
-  Clock, DollarSign, ChevronDown, ChevronUp,
+  Clock, DollarSign, ChevronDown, ChevronUp, Mail, Phone,
 } from 'lucide-react';
 import { Provider } from '@/types';
 
@@ -38,6 +38,8 @@ export default function ProvidersPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [locations, setLocations] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
 
   // Business-specific
   const [services, setServices] = useState('');
@@ -65,7 +67,7 @@ export default function ProvidersPage() {
   });
 
   const resetForm = () => {
-    setName(''); setDescription(''); setLocations('');
+    setName(''); setDescription(''); setLocations(''); setEmail(''); setPhone('');
     setServices(''); setCategories(''); setMinValue(''); setMaxValue('');
     setSkills(''); setRateMin(''); setRateMax(''); setAvailability(''); setProfileUrl('');
     setProviderType('business');
@@ -83,6 +85,8 @@ export default function ProvidersPage() {
       if (providerType === 'business') {
         return api.createProvider({
           ...base,
+          email: email || undefined,
+          phone: phone || undefined,
           services: services.split(',').map((s) => s.trim()).filter(Boolean),
           categories: categories.split(',').map((s) => s.trim()).filter(Boolean),
           min_project_value: minValue ? parseFloat(minValue) : undefined,
@@ -91,6 +95,8 @@ export default function ProvidersPage() {
       } else {
         return api.createProvider({
           ...base,
+          email: email || undefined,
+          phone: phone || undefined,
           skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
           hourly_rate_min: rateMin ? parseFloat(rateMin) : undefined,
           hourly_rate_max: rateMax ? parseFloat(rateMax) : undefined,
@@ -222,6 +228,26 @@ export default function ProvidersPage() {
                 onChange={(e) => setLocations(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 placeholder="Austin TX, Remote"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                placeholder="contact@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                placeholder="+1 (555) 000-0000"
               />
             </div>
 
@@ -439,17 +465,17 @@ function BusinessCard({ provider: p }: { provider: Provider }) {
           {p.locations.join(', ')}
         </div>
       )}
-      {(p.min_project_value || p.max_project_value) && (
-        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-          <DollarSign className="w-3 h-3 flex-shrink-0" />
-          {p.min_project_value
-            ? `$${(p.min_project_value / 1000).toFixed(0)}K`
-            : 'No min'}{' '}
-          —{' '}
-          {p.max_project_value
-            ? `$${(p.max_project_value / 1000).toFixed(0)}K`
-            : 'No max'}
-        </div>
+      {p.email && (
+        <a href={`mailto:${p.email}`} className="flex items-center gap-1 text-xs text-radar-600 hover:text-radar-700 mt-1">
+          <Mail className="w-3 h-3 flex-shrink-0" />
+          {p.email}
+        </a>
+      )}
+      {p.phone && (
+        <a href={`tel:${p.phone}`} className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+          <Phone className="w-3 h-3 flex-shrink-0" />
+          {p.phone}
+        </a>
       )}
     </Card>
   );
@@ -522,6 +548,18 @@ function IndividualCard({ provider: p }: { provider: Provider }) {
           className="block mt-2 text-xs text-radar-600 hover:text-radar-700 truncate"
         >
           {p.profile_url}
+        </a>
+      )}
+      {p.email && (
+        <a href={`mailto:${p.email}`} className="flex items-center gap-1 text-xs text-radar-600 hover:text-radar-700 mt-1">
+          <Mail className="w-3 h-3 flex-shrink-0" />
+          {p.email}
+        </a>
+      )}
+      {p.phone && (
+        <a href={`tel:${p.phone}`} className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+          <Phone className="w-3 h-3 flex-shrink-0" />
+          {p.phone}
         </a>
       )}
     </Card>

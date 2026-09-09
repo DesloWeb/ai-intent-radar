@@ -31,6 +31,8 @@ async def create_provider(
         provider_type=payload.provider_type,
         name=payload.name,
         description=payload.description,
+        email=payload.email,
+        phone=payload.phone,
         services=payload.services,
         categories=payload.categories,
         skills=payload.skills,

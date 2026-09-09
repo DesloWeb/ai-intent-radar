@@ -187,6 +187,8 @@ class ApiClient {
     provider_type?: string;
     name: string;
     description?: string;
+    email?: string;
+    phone?: string;
     services?: string[];
     categories?: string[];
     skills?: string[];
@@ -254,9 +256,34 @@ class ApiClient {
     );
   }
 
-  // Countries
-  async getCountries() {
-    return this.request<import('../types').Country[]>('/countries');
+  // Briefs
+  async generateBrief(opportunityId: string, providerMatchId?: string) {
+    return this.request<{ id: string; token: string; public_url: string; expires_at: string; status: string; view_count: number; created_at: string; opportunity_id: string; provider_match_id: string | null }>(
+      '/briefs',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          opportunity_id: opportunityId,
+          provider_match_id: providerMatchId || null,
+        }),
+      }
+    );
+  }
+
+  async getBriefs(opportunityId?: string) {
+    const params = opportunityId ? `?opportunity_id=${opportunityId}` : '';
+    return this.request<Array<{ id: string; token: string; public_url: string; expires_at: string; status: string; view_count: number; created_at: string }>>(`/briefs${params}`);
+  }
+
+  async getPublicBrief(token: string) {
+    return this.request<import('../types').PublicBrief>(`/briefs/public/${token}`);
+  }
+
+  async respondToBrief(token: string, data: { action: string; provider_name: string; provider_email: string; message?: string }) {
+    return this.request<{ message: string; status: string }>(`/briefs/public/${token}/respond`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

@@ -148,6 +148,7 @@ def create_app() -> FastAPI:
         feedback,
         countries,
         market_intelligence,
+        briefs,
     )
 
     application.include_router(auth.router, prefix=settings.API_V1_PREFIX)
@@ -158,6 +159,7 @@ def create_app() -> FastAPI:
     application.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
     application.include_router(countries.router, prefix=settings.API_V1_PREFIX)
     application.include_router(market_intelligence.router, prefix=settings.API_V1_PREFIX)
+    application.include_router(briefs.router, prefix=settings.API_V1_PREFIX)
 
     @application.get("/health")
     async def health():

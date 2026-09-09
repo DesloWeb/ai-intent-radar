@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # Data Sources
     SAM_GOV_API_KEY: Optional[str] = None
     ENABLED_COUNTRIES: list[str] = ["US"]
+    FRONTEND_URL: str = "https://ai-intent-radar.vercel.app"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

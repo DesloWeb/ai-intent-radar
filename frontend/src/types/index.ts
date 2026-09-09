@@ -81,6 +81,8 @@ export interface Provider {
   provider_type: 'business' | 'individual';
   name: string;
   description: string | null;
+  email: string | null;
+  phone: string | null;
   // Business fields
   services: string[];
   categories: string[];
@@ -177,4 +179,34 @@ export interface Country {
   is_enabled: boolean;
   signal_sources: { name: string; type: string; url: string }[];
   settings: Record<string, unknown>;
+}
+
+export interface PublicBrief {
+  opportunity_title: string;
+  opportunity_description: string;
+  opportunity_category: string;
+  opportunity_urgency: 'low' | 'medium' | 'high' | 'critical';
+  opportunity_intent_score: number;
+  opportunity_confidence: number;
+  opportunity_why_now: string | null;
+  opportunity_recommended_action: string | null;
+  opportunity_requirements: string[];
+  opportunity_evidence: string[];
+  opportunity_source_url: string | null;
+  opportunity_estimated_value_min: number | null;
+  opportunity_estimated_value_max: number | null;
+  opportunity_currency: string | null;
+  opportunity_deadline: string | null;
+  opportunity_buyer_organization: string | null;
+  opportunity_location: string | null;
+  match_score: number | null;
+  match_reasoning: string | null;
+  match_service_fit: number | null;
+  match_geographic_fit: number | null;
+  match_project_size_fit: number | null;
+  provider_name: string | null;
+  brief_id: string;
+  status: string;
+  expires_at: string;
+  already_responded: boolean;
 }

@@ -290,6 +290,10 @@ class Provider(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)
 
+    # Contact details
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     # Business fields
     services: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     categories: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
@@ -443,4 +447,55 @@ class MarketTrend(Base, TimestampMixin):
             "category",
             "period_start",
         ),
+    )
+
+
+class ProviderBrief(Base, TimestampMixin):
+    """Shareable signed brief linking a provider match to an opportunity.
+
+    Generates a public URL valid for 7 days. No authentication required
+    to view — the token itself is the credential.
+    """
+    __tablename__ = "provider_briefs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    # Who generated the brief
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    # What it covers
+    opportunity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("opportunities.id"), nullable=False
+    )
+    provider_match_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("provider_matches.id"), nullable=True
+    )
+    # The signed token (opaque, URL-safe)
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    # Expiry
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Provider response
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending | interested | not_interested | applied
+    provider_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    responded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # View tracking
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_viewed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_provider_briefs_token", "token"),
+        Index("ix_provider_briefs_org", "organization_id"),
     )
