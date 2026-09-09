@@ -12,7 +12,7 @@ import { ScoreBar } from '@/components/ui/ScoreBar';
 import { UrgencyBadge } from '@/components/ui/UrgencyBadge';
 import { CountryFlag } from '@/components/ui/CountryFlag';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Target, Save, X, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Target, Save, X, Phone, ChevronLeft, ChevronRight, CheckCircle, ExternalLink } from 'lucide-react';
 import { OpportunityListResponse } from '@/types';
 
 export default function OpportunitiesPage() {
@@ -24,6 +24,8 @@ export default function OpportunitiesPage() {
   const [category, setCategory] = useState<string | undefined>();
   const [urgency, setUrgency] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  // Track feedback state per opportunity: { [opp_id]: 'saved' | 'contacted' | 'dismissed' | 'pending' }
+  const [feedbackState, setFeedbackState] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -47,9 +49,17 @@ export default function OpportunitiesPage() {
   const feedbackMutation = useMutation({
     mutationFn: (vars: { opportunity_id: string; feedback_type: string }) =>
       api.submitFeedback(vars),
-    onSuccess: () => {
+    onMutate: (vars) => {
+      setFeedbackState((prev) => ({ ...prev, [vars.opportunity_id]: 'pending' }));
+    },
+    onSuccess: (_, vars) => {
+      setFeedbackState((prev) => ({ ...prev, [vars.opportunity_id]: vars.feedback_type }));
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (_, vars) => {
+      // Already submitted — still mark as done so UI reflects it
+      setFeedbackState((prev) => ({ ...prev, [vars.opportunity_id]: vars.feedback_type }));
     },
   });
 
@@ -171,46 +181,67 @@ export default function OpportunitiesPage() {
                   )}
                 </div>
 
+                {/* View source link */}
+                {opp.source_url && (
+                  <div className="px-4 pb-3">
+                    <a
+                      href={opp.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-radar-600 hover:text-radar-700 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      View original source
+                    </a>
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div className="flex border-t border-gray-100">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      feedbackMutation.mutate({
-                        opportunity_id: opp.id,
-                        feedback_type: 'saved',
-                      });
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-radar-50 hover:text-radar-600 transition-colors"
-                  >
-                    <Save className="w-3.5 h-3.5" /> Save
-                  </button>
-                  <div className="w-px bg-gray-100" />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      feedbackMutation.mutate({
-                        opportunity_id: opp.id,
-                        feedback_type: 'contacted',
-                      });
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" /> Contact
-                  </button>
-                  <div className="w-px bg-gray-100" />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      feedbackMutation.mutate({
-                        opportunity_id: opp.id,
-                        feedback_type: 'dismissed',
-                      });
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-500 transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" /> Dismiss
-                  </button>
+                  {feedbackState[opp.id] && feedbackState[opp.id] !== 'pending' ? (
+                    <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      {feedbackState[opp.id] === 'saved' && 'Saved'}
+                      {feedbackState[opp.id] === 'contacted' && 'Contacted'}
+                      {feedbackState[opp.id] === 'dismissed' && 'Dismissed'}
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          feedbackMutation.mutate({ opportunity_id: opp.id, feedback_type: 'saved' });
+                        }}
+                        disabled={feedbackState[opp.id] === 'pending'}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-radar-50 hover:text-radar-600 transition-colors disabled:opacity-40"
+                      >
+                        <Save className="w-3.5 h-3.5" /> Save
+                      </button>
+                      <div className="w-px bg-gray-100" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          feedbackMutation.mutate({ opportunity_id: opp.id, feedback_type: 'contacted' });
+                        }}
+                        disabled={feedbackState[opp.id] === 'pending'}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-40"
+                      >
+                        <Phone className="w-3.5 h-3.5" /> Contact
+                      </button>
+                      <div className="w-px bg-gray-100" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          feedbackMutation.mutate({ opportunity_id: opp.id, feedback_type: 'dismissed' });
+                        }}
+                        disabled={feedbackState[opp.id] === 'pending'}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-40"
+                      >
+                        <X className="w-3.5 h-3.5" /> Dismiss
+                      </button>
+                    </>
+                  )}
                 </div>
               </Card>
             ))}

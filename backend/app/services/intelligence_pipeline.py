@@ -153,6 +153,7 @@ def _create_opportunity_from_signal(
         recommended_action=extracted.get("recommended_action"),
         evidence=evidence,
         market_context=extracted.get("market_context", {}),
+        source_url=signal.raw_data.get("source_url") if signal.raw_data else None,
         status=OpportunityStatus.VALIDATED,
     )
 

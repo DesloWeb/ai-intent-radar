@@ -48,8 +48,8 @@ async def list_opportunities(
         select(Opportunity)
         .where(where_clause)
         .order_by(
-            Opportunity.intent_score.desc(),
             Opportunity.created_at.desc(),
+            Opportunity.intent_score.desc(),
         )
         .offset(offset)
         .limit(per_page)

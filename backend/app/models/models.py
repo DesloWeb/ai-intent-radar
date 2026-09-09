@@ -247,6 +247,7 @@ class Opportunity(Base, TimestampMixin):
     recommended_action: Mapped[str] = mapped_column(Text, nullable=True)
     evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     market_context: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    source_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(

@@ -123,6 +123,7 @@ class OpportunityResponse(BaseModel):
     recommended_action: Optional[str] = None
     evidence: Union[List, Dict]
     market_context: Dict
+    source_url: Optional[str] = None
     status: str
     created_at: datetime
 

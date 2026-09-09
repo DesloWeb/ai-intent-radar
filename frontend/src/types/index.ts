@@ -63,6 +63,7 @@ export interface Opportunity {
   recommended_action: string | null;
   evidence: string[];
   market_context: Record<string, unknown>;
+  source_url: string | null;
   status: string;
   created_at: string;
 }
