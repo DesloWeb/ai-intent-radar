@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { ScoreBar } from '@/components/ui/ScoreBar';
 import { UrgencyBadge } from '@/components/ui/UrgencyBadge';
 import { CountryFlag } from '@/components/ui/CountryFlag';
+import { ContactModal } from '@/components/ui/ContactModal';
 import {
   ArrowLeft,
   Save,
@@ -34,6 +35,7 @@ export default function OpportunityDetailPage() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const id = params.id as string;
+  const [showContactModal, setShowContactModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -304,7 +306,7 @@ export default function OpportunityDetailPage() {
           </Card>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => feedbackMutation.mutate({ opportunity_id: id, feedback_type: 'saved' })}
               className="flex items-center gap-2 px-4 py-2.5 bg-radar-600 hover:bg-radar-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -312,10 +314,10 @@ export default function OpportunityDetailPage() {
               <Save className="w-4 h-4" /> Save Opportunity
             </button>
             <button
-              onClick={() => feedbackMutation.mutate({ opportunity_id: id, feedback_type: 'contacted' })}
+              onClick={() => setShowContactModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <Phone className="w-4 h-4" /> Mark as Contacted
+              <Phone className="w-4 h-4" /> Contact
             </button>
             <button
               onClick={() => feedbackMutation.mutate({ opportunity_id: id, feedback_type: 'won' })}
@@ -338,6 +340,15 @@ export default function OpportunityDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Contact Modal */}
+      {showContactModal && opp && (
+        <ContactModal
+          opportunity={opp}
+          onClose={() => setShowContactModal(false)}
+          onContacted={() => feedbackMutation.mutate({ opportunity_id: id, feedback_type: 'contacted' })}
+        />
+      )}
     </AppShell>
   );
 }

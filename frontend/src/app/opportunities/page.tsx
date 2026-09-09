@@ -12,8 +12,9 @@ import { ScoreBar } from '@/components/ui/ScoreBar';
 import { UrgencyBadge } from '@/components/ui/UrgencyBadge';
 import { CountryFlag } from '@/components/ui/CountryFlag';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ContactModal } from '@/components/ui/ContactModal';
 import { Target, Save, X, Phone, ChevronLeft, ChevronRight, CheckCircle, ExternalLink } from 'lucide-react';
-import { OpportunityListResponse } from '@/types';
+import { Opportunity, OpportunityListResponse } from '@/types';
 
 export default function OpportunitiesPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function OpportunitiesPage() {
   const [page, setPage] = useState(1);
   // Track feedback state per opportunity: { [opp_id]: 'saved' | 'contacted' | 'dismissed' | 'pending' }
   const [feedbackState, setFeedbackState] = useState<Record<string, string>>({});
+  const [contactingOpp, setContactingOpp] = useState<Opportunity | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -74,6 +76,7 @@ export default function OpportunitiesPage() {
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;
 
   return (
+    <>
     <AppShell>
       <Header
         title="Opportunities"
@@ -222,7 +225,7 @@ export default function OpportunitiesPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          feedbackMutation.mutate({ opportunity_id: opp.id, feedback_type: 'contacted' });
+                          setContactingOpp(opp);
                         }}
                         disabled={feedbackState[opp.id] === 'pending'}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-40"
@@ -278,5 +281,15 @@ export default function OpportunitiesPage() {
         />
       )}
     </AppShell>
+
+    {/* Contact Modal */}
+    {contactingOpp && (
+      <ContactModal
+        opportunity={contactingOpp}
+        onClose={() => setContactingOpp(null)}
+        onContacted={() => feedbackMutation.mutate({ opportunity_id: contactingOpp.id, feedback_type: 'contacted' })}
+      />
+    )}
+  </>
   );
 }
