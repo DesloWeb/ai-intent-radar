@@ -189,7 +189,20 @@ export default function DashboardPage() {
                             {opp.category}
                           </span>
                         </div>
-                        <UrgencyBadge urgency={opp.urgency} size="sm" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-400">
+                            {(() => {
+                              const diff = Date.now() - new Date(opp.created_at).getTime();
+                              const mins = Math.floor(diff / 60000);
+                              const hrs = Math.floor(diff / 3600000);
+                              const days = Math.floor(diff / 86400000);
+                              if (mins < 60) return `${mins}m ago`;
+                              if (hrs < 24) return `${hrs}h ago`;
+                              return `${days}d ago`;
+                            })()}
+                          </span>
+                          <UrgencyBadge urgency={opp.urgency} size="sm" />
+                        </div>
                       </div>
                       <h4 className="text-sm font-semibold text-gray-800 line-clamp-1">
                         {opp.title}
