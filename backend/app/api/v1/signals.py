@@ -283,7 +283,7 @@ async def ingest_all(
         max_per_query=8, dry_run=dry_run, organization_id=user.organization_id,
     )
     sec = await ingest_sec_signals(
-        count=30, dry_run=dry_run, organization_id=user.organization_id,
+        count=80, dry_run=dry_run, organization_id=user.organization_id,
     )
 
     # Run pipeline on all pending signals

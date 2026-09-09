@@ -96,7 +96,10 @@ async def fetch_recent_form_d(
             updated = updated_el.text or "" if updated_el is not None else ""
             filing_id = id_el.text or "" if id_el is not None else ""
 
-            # Extract company name from title (format: "D - Company Name")
+            # Extract company name from title (format: "D - Company Name" or "D/A - Company Name")
+            # Skip amendments (D/A) — only new filings
+            if title.startswith("D/A"):
+                continue
             company_name = title.replace("D - ", "").strip() if title.startswith("D - ") else title
 
             filings.append({

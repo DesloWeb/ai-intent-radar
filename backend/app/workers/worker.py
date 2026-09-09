@@ -110,7 +110,7 @@ def ingest_from_sec(dry_run: bool = False):
     """Pull recent Form D filings from SEC EDGAR — companies that just raised funding."""
     return asyncio.run(
         _ingest_sec(
-            count=40,
+            count=80,  # Fetch more to compensate for filtering out D/A amendments
             dry_run=dry_run,
         )
     )
