@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
@@ -22,13 +22,17 @@ import {
   BarChart3,
   Activity,
   ArrowRight,
+  RefreshCw,
+  CheckCircle,
 } from 'lucide-react';
 import { DashboardResponse } from '@/types';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [countryCode, setCountryCode] = useState<string | undefined>();
+  const [refreshDone, setRefreshDone] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -42,6 +46,16 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
+  const refreshMutation = useMutation({
+    mutationFn: () => api.ingestAll(),
+    onSuccess: () => {
+      setRefreshDone(true);
+      setTimeout(() => setRefreshDone(false), 3000);
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+    },
+  });
+
   if (authLoading || !isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -52,12 +66,26 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <Header
-        title="Intelligence Dashboard"
-        subtitle="Real-time commercial intent intelligence across your markets"
-        countryCode={countryCode}
-        onCountryChange={setCountryCode}
-      />
+      <div className="flex items-start justify-between mb-1">
+        <Header
+          title="Intelligence Dashboard"
+          subtitle="Real-time commercial intent intelligence across your markets"
+          countryCode={countryCode}
+          onCountryChange={setCountryCode}
+        />
+        <button
+          onClick={() => refreshMutation.mutate()}
+          disabled={refreshMutation.isPending}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 disabled:opacity-50 transition-colors mt-1 flex-shrink-0"
+        >
+          {refreshDone ? (
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+          ) : (
+            <RefreshCw className={`w-4 h-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+          )}
+          {refreshMutation.isPending ? 'Refreshing...' : refreshDone ? 'Done!' : 'Refresh Data'}
+        </button>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">

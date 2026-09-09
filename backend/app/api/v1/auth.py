@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -187,6 +189,52 @@ async def refresh_token(body: RefreshTokenRequest, db: AsyncSession = Depends(ge
 async def get_me(user: User = Depends(get_current_user)):
     """Get current user profile."""
     return user
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_profile(
+    payload: UpdateProfileRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update current user's profile."""
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.email is not None:
+        # Check email not already taken by another user
+        existing = await db.execute(
+            select(User).where(User.email == payload.email, User.id != user.id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = payload.email
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.post("/change-password")
+async def change_password(
+    payload: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Change current user's password."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/logout", status_code=204)

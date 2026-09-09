@@ -476,7 +476,7 @@ class ProviderBrief(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("provider_matches.id"), nullable=True
     )
     # The signed token (opaque, URL-safe)
-    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     # Expiry
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # Provider response

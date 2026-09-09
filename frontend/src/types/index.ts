@@ -210,3 +210,20 @@ export interface PublicBrief {
   expires_at: string;
   already_responded: boolean;
 }
+
+export interface Brief {
+  id: string;
+  token: string;
+  public_url: string;
+  expires_at: string;
+  status: string;
+  view_count: number;
+  created_at: string;
+  opportunity_id: string;
+  opportunity_title?: string;
+  provider_match_id: string | null;
+  provider_name?: string;
+  provider_email?: string;
+  provider_message?: string;
+  responded_at?: string;
+}

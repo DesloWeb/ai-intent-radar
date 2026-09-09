@@ -47,12 +47,17 @@ class BriefResponse(BaseModel):
     id: uuid.UUID
     token: str
     opportunity_id: uuid.UUID
+    opportunity_title: Optional[str] = None
     provider_match_id: Optional[uuid.UUID] = None
     expires_at: datetime
     status: str
     view_count: int
     public_url: str
     created_at: datetime
+    provider_name: Optional[str] = None
+    provider_email: Optional[str] = None
+    provider_message: Optional[str] = None
+    responded_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -171,12 +176,14 @@ async def generate_brief(
         id=brief.id,
         token=brief.token,
         opportunity_id=brief.opportunity_id,
+        opportunity_title=opportunity.title,
         provider_match_id=brief.provider_match_id,
         expires_at=brief.expires_at,
         status=brief.status,
         view_count=brief.view_count,
         public_url=public_url,
         created_at=brief.created_at,
+        provider_name=brief.provider_name,
     )
 
 
@@ -190,7 +197,9 @@ async def list_briefs(
     import os
     frontend_url = os.getenv("FRONTEND_URL", "https://ai-intent-radar.vercel.app")
 
-    query = select(ProviderBrief).where(
+    query = select(ProviderBrief, Opportunity.title.label("opp_title")).join(
+        Opportunity, Opportunity.id == ProviderBrief.opportunity_id
+    ).where(
         ProviderBrief.organization_id == user.organization_id
     ).order_by(ProviderBrief.created_at.desc())
 
@@ -198,21 +207,26 @@ async def list_briefs(
         query = query.where(ProviderBrief.opportunity_id == opportunity_id)
 
     result = await db.execute(query)
-    briefs = result.scalars().all()
+    rows = result.all()
 
     return [
         BriefResponse(
             id=b.id,
             token=b.token,
             opportunity_id=b.opportunity_id,
+            opportunity_title=opp_title,
             provider_match_id=b.provider_match_id,
             expires_at=b.expires_at,
             status=b.status,
             view_count=b.view_count,
             public_url=f"{frontend_url}/brief/{b.token}",
             created_at=b.created_at,
+            provider_name=b.provider_name,
+            provider_email=b.provider_email,
+            provider_message=b.provider_message,
+            responded_at=b.responded_at,
         )
-        for b in briefs
+        for b, opp_title in rows
     ]
 
 

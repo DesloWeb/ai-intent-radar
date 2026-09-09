@@ -30,7 +30,7 @@ import {
   Copy,
   Link,
 } from 'lucide-react';
-import { Opportunity, ProviderMatch } from '@/types';
+import { Opportunity, ProviderMatch, Brief } from '@/types';
 
 export default function OpportunityDetailPage() {
   const router = useRouter();
@@ -42,11 +42,32 @@ export default function OpportunityDetailPage() {
   const [generatedBriefs, setGeneratedBriefs] = useState<Record<string, string>>({}); // matchId -> public_url
   const [copiedBrief, setCopiedBrief] = useState<string | null>(null);
 
+  // Load existing briefs for this opportunity
+  const { data: existingBriefs, refetch: refetchBriefs } = useQuery<Brief[]>({
+    queryKey: ['briefs', id],
+    queryFn: () => api.getBriefs(id),
+    enabled: isAuthenticated && !!id,
+  });
+
+  // Build a map of matchId -> brief for quick lookup
+  const briefsByMatch: Record<string, Brief> = (existingBriefs ?? []).reduce<Record<string, Brief>>(
+    (acc, b) => {
+      const key = b.provider_match_id ?? 'general';
+      // Keep the most recent brief per match
+      if (!acc[key] || new Date(b.created_at) > new Date(acc[key].created_at)) {
+        acc[key] = b;
+      }
+      return acc;
+    },
+    {}
+  );
+
   const briefMutation = useMutation({
     mutationFn: (matchId?: string) => api.generateBrief(id, matchId),
     onSuccess: (data, matchId) => {
       const key = matchId || 'general';
       setGeneratedBriefs(prev => ({ ...prev, [key]: data.public_url }));
+      refetchBriefs();
     },
   });
 
@@ -311,35 +332,70 @@ export default function OpportunityDetailPage() {
                       {m.reasoning && (
                         <p className="text-xs text-gray-600 mt-1 mb-3">{m.reasoning}</p>
                       )}
-                      {/* Generate Brief for this match */}
-                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200">
-                        {briefUrl ? (
-                          <>
-                            <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs text-emerald-700 truncate">
-                              {briefUrl}
-                            </div>
-                            <button
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(briefUrl);
-                                setCopiedBrief(briefKey);
-                                setTimeout(() => setCopiedBrief(null), 2000);
-                              }}
-                              className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                            >
-                              {copiedBrief === briefKey ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                              {copiedBrief === briefKey ? 'Copied!' : 'Copy'}
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => briefMutation.mutate(m.id)}
-                            disabled={briefMutation.isPending}
-                            className="flex items-center gap-1.5 text-xs font-medium text-radar-600 hover:text-radar-700 bg-radar-50 hover:bg-radar-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                          >
-                            <FileText className="w-3 h-3" />
-                            {briefMutation.isPending ? 'Generating...' : 'Generate Brief Link'}
-                          </button>
+                      {/* Brief section */}
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        {/* Existing brief status */}
+                        {briefsByMatch[briefKey] && (
+                          <div className="flex items-center gap-2 mb-2">
+                            {briefsByMatch[briefKey].status === 'interested' && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                <CheckCircle className="w-3 h-3" /> Provider Interested
+                              </span>
+                            )}
+                            {briefsByMatch[briefKey].status === 'not_interested' && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                                <X className="w-3 h-3" /> Not Interested
+                              </span>
+                            )}
+                            {briefsByMatch[briefKey].status === 'pending' && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                                <Clock className="w-3 h-3" /> Awaiting Response
+                              </span>
+                            )}
+                            <span className="text-[10px] text-gray-400">
+                              {briefsByMatch[briefKey].view_count} view{briefsByMatch[briefKey].view_count !== 1 ? 's' : ''}
+                            </span>
+                            {briefsByMatch[briefKey].provider_name && (
+                              <span className="text-[10px] text-gray-500">
+                                · {briefsByMatch[briefKey].provider_name}
+                              </span>
+                            )}
+                          </div>
                         )}
+                        {/* Brief URL / generate button */}
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const activeUrl = briefUrl || briefsByMatch[briefKey]?.public_url;
+                            if (activeUrl) return (
+                              <>
+                                <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs text-emerald-700 truncate">
+                                  {activeUrl}
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(activeUrl);
+                                    setCopiedBrief(briefKey);
+                                    setTimeout(() => setCopiedBrief(null), 2000);
+                                  }}
+                                  className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                                >
+                                  {copiedBrief === briefKey ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                  {copiedBrief === briefKey ? 'Copied!' : 'Copy'}
+                                </button>
+                              </>
+                            );
+                            return (
+                              <button
+                                onClick={() => briefMutation.mutate(m.id)}
+                                disabled={briefMutation.isPending}
+                                className="flex items-center gap-1.5 text-xs font-medium text-radar-600 hover:text-radar-700 bg-radar-50 hover:bg-radar-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                <FileText className="w-3 h-3" />
+                                {briefMutation.isPending ? 'Generating...' : 'Generate Brief Link'}
+                              </button>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   );

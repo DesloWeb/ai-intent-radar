@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Target,
@@ -12,19 +13,32 @@ import {
   Settings,
   LogOut,
   Radar,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/lib/api';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/opportunities', label: 'Opportunities', icon: Target },
   { href: '/market-intelligence', label: 'Market Intelligence', icon: Globe },
   { href: '/providers', label: 'Providers', icon: Users },
+  { href: '/briefs', label: 'Provider Briefs', icon: FileText },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { logout, user } = useAuth();
+  const { logout, user, isAuthenticated } = useAuth();
+
+  const { data: briefs = [] } = useQuery({
+    queryKey: ['briefs'],
+    queryFn: () => api.getBriefs(),
+    enabled: isAuthenticated,
+    staleTime: 30000,
+  });
+
+  const pendingCount = (briefs as Array<{ status: string }>).filter((b) => b.status === 'pending').length;
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-radar-950 text-white flex flex-col">
@@ -56,6 +70,11 @@ export function Sidebar() {
             >
               <Icon className="w-4 h-4" />
               {label}
+              {href === '/briefs' && pendingCount > 0 && (
+                <span className="ml-auto text-[10px] font-bold bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}

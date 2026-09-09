@@ -258,7 +258,7 @@ class ApiClient {
 
   // Briefs
   async generateBrief(opportunityId: string, providerMatchId?: string) {
-    return this.request<{ id: string; token: string; public_url: string; expires_at: string; status: string; view_count: number; created_at: string; opportunity_id: string; provider_match_id: string | null }>(
+    return this.request<import('../types').Brief>(
       '/briefs',
       {
         method: 'POST',
@@ -272,7 +272,7 @@ class ApiClient {
 
   async getBriefs(opportunityId?: string) {
     const params = opportunityId ? `?opportunity_id=${opportunityId}` : '';
-    return this.request<Array<{ id: string; token: string; public_url: string; expires_at: string; status: string; view_count: number; created_at: string }>>(`/briefs${params}`);
+    return this.request<import('../types').Brief[]>(`/briefs${params}`);
   }
 
   async getPublicBrief(token: string) {
@@ -282,6 +282,26 @@ class ApiClient {
   async respondToBrief(token: string, data: { action: string; provider_name: string; provider_email: string; message?: string }) {
     return this.request<{ message: string; status: string }>(`/briefs/public/${token}/respond`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Ingest
+  async ingestAll() {
+    return this.request<{ total_ingested: number }>('/signals/ingest/all', { method: 'POST' });
+  }
+
+  // Auth (account management)
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  }
+
+  async updateProfile(data: { full_name?: string; email?: string }) {
+    return this.request<import('../types').User>('/auth/me', {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

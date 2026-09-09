@@ -40,13 +40,15 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_provider_briefs_token", "provider_briefs", ["token"])
-    op.create_index("ix_provider_briefs_org", "provider_briefs", ["organization_id"])
+    # Indexes are defined in the SQLAlchemy model (models.py)
+    # op.create_index("ix_provider_briefs_token", "provider_briefs", ["token"])
+    # op.create_index("ix_provider_briefs_org", "provider_briefs", ["organization_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_provider_briefs_org", "provider_briefs")
-    op.drop_index("ix_provider_briefs_token", "provider_briefs")
+    # Indexes are defined in the SQLAlchemy model (models.py)
+    # op.drop_index("ix_provider_briefs_org", "provider_briefs")
+    # op.drop_index("ix_provider_briefs_token", "provider_briefs")
     op.drop_table("provider_briefs")
     op.drop_column("providers", "phone")
     op.drop_column("providers", "email")
