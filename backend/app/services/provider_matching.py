@@ -23,13 +23,25 @@ async def match_opportunity_to_providers(
     db: AsyncSession, opportunity: Opportunity
 ) -> list[ProviderMatch]:
     """Find and score all active providers for an opportunity."""
+    # country_codes is a JSON column (list), so we load all active providers
+    # for this org and filter in Python (can't use PostgreSQL array operators on JSON)
     result = await db.execute(
         select(Provider).where(
+            Provider.organization_id == opportunity.organization_id,
             Provider.is_active == True,
-            Provider.country_codes.contains(opportunity.country_code),
         )
     )
-    providers = list(result.scalars().all())
+    all_providers = list(result.scalars().all())
+
+    # Filter to providers that serve this opportunity's country
+    providers = [
+        p for p in all_providers
+        if opportunity.country_code in (p.country_codes or [])
+    ]
+
+    # If no country match, fall back to all active providers so we always return something
+    if not providers:
+        providers = all_providers
 
     matches = []
     for provider in providers:
