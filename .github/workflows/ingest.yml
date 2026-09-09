@@ -20,14 +20,9 @@ jobs:
           TOKEN=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Ingest HN signals (10-12 intents)
+      - name: Ingest from all sources (HN + Google News + SEC EDGAR)
         run: |
-          curl -s -X POST "${{ secrets.API_URL }}/signals/ingest/hn?limit_stories=10&limit_comments=5" \
-            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}"
-
-      - name: Process signals through AI pipeline
-        run: |
-          curl -s -X POST "${{ secrets.API_URL }}/signals/process?limit=20" \
+          curl -s -X POST "${{ secrets.API_URL }}/signals/ingest/all" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}"
 
       - name: Done

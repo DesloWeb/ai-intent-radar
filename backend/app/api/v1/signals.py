@@ -154,6 +154,14 @@ class HNIngestResult(BaseModel):
     message: Optional[str] = None
 
 
+class MultiSourceIngestResult(BaseModel):
+    ingested: int
+    skipped: int
+    errors: int
+    breakdown: dict
+    message: Optional[str] = None
+
+
 # SEC-9: Role guard - only admin and analyst can ingest signals
 @router.post("/ingest/hn", response_model=HNIngestResult)
 async def ingest_hn(
@@ -190,3 +198,122 @@ async def ingest_hn(
     await db.commit()
 
     return HNIngestResult(**result)
+
+
+@router.post("/ingest/google-news", response_model=MultiSourceIngestResult)
+async def ingest_google_news(
+    max_per_query: int = Query(10, ge=1, le=30, description="Max articles per search query"),
+    dry_run: bool = Query(False, description="Detect signals without writing to DB"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin", "analyst")),
+):
+    """
+    Pull commercial intent signals from Google News RSS.
+    Searches for service requests, expansion announcements, hiring surges,
+    funding news, and procurement activity. No API key required.
+    """
+    from app.services.google_news_ingester import ingest_google_news_signals
+    from app.services.audit_service import audit
+
+    result = await ingest_google_news_signals(
+        max_per_query=max_per_query,
+        dry_run=dry_run,
+        organization_id=user.organization_id,
+    )
+    await audit(
+        db, user.organization_id, user.id,
+        "signal:ingest_google_news", "signal", None,
+        {"ingested": result.get("ingested", 0), "dry_run": dry_run},
+    )
+    return MultiSourceIngestResult(**result)
+
+
+@router.post("/ingest/sec", response_model=MultiSourceIngestResult)
+async def ingest_sec(
+    count: int = Query(40, ge=1, le=100, description="Number of recent Form D filings to pull"),
+    dry_run: bool = Query(False, description="Detect signals without writing to DB"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin", "analyst")),
+):
+    """
+    Pull recent Form D filings from SEC EDGAR.
+    Every US private funding round must be filed within 15 days — these signals
+    arrive before press releases and indicate imminent commercial spend.
+    No API key required.
+    """
+    from app.services.sec_ingester import ingest_sec_signals
+    from app.services.audit_service import audit
+
+    result = await ingest_sec_signals(
+        count=count,
+        dry_run=dry_run,
+        organization_id=user.organization_id,
+    )
+    await audit(
+        db, user.organization_id, user.id,
+        "signal:ingest_sec", "signal", None,
+        {"ingested": result.get("ingested", 0), "dry_run": dry_run},
+    )
+    return MultiSourceIngestResult(**result)
+
+
+@router.post("/ingest/all")
+async def ingest_all(
+    dry_run: bool = Query(False, description="Detect signals without writing to DB"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin", "analyst")),
+):
+    """
+    Ingest from all sources: HN + Google News + SEC EDGAR, then run the pipeline.
+    This is the recommended way to refresh all signals in one call.
+    """
+    from app.services.hn_ingester import ingest_hn_signals
+    from app.services.google_news_ingester import ingest_google_news_signals
+    from app.services.sec_ingester import ingest_sec_signals
+    from app.services.signal_service import get_pending_signals
+    from app.services.intelligence_pipeline import process_signal
+    from app.models.models import SignalStatus
+    from app.services.audit_service import audit
+
+    hn = await ingest_hn_signals(
+        limit_stories=20, limit_comments_per_thread=20,
+        dry_run=dry_run, organization_id=user.organization_id,
+    )
+    gnews = await ingest_google_news_signals(
+        max_per_query=8, dry_run=dry_run, organization_id=user.organization_id,
+    )
+    sec = await ingest_sec_signals(
+        count=30, dry_run=dry_run, organization_id=user.organization_id,
+    )
+
+    # Run pipeline on all pending signals
+    pipeline = {"processed": 0, "created": 0, "rejected": 0, "errors": 0}
+    if not dry_run:
+        pending = await get_pending_signals(db, limit=100)
+        for signal in pending:
+            try:
+                result = await process_signal(db, signal)
+                pipeline["processed"] += 1
+                if result and result.status == SignalStatus.VALIDATED:
+                    pipeline["created"] += 1
+                elif result and result.status == SignalStatus.REJECTED:
+                    pipeline["rejected"] += 1
+            except Exception:
+                pipeline["errors"] += 1
+        await db.commit()
+
+    await audit(
+        db, user.organization_id, user.id,
+        "signal:ingest_all", "signal", None,
+        {"hn": hn.get("ingested"), "gnews": gnews.get("ingested"), "sec": sec.get("ingested")},
+    )
+
+    return {
+        "sources": {
+            "hacker_news": hn,
+            "google_news": gnews,
+            "sec_edgar": sec,
+        },
+        "pipeline": pipeline,
+        "total_ingested": hn.get("ingested", 0) + gnews.get("ingested", 0) + sec.get("ingested", 0),
+    }

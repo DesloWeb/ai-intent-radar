@@ -133,8 +133,12 @@ memory.md
 SUMMARY.md
 PRODUCTION_READINESS.md
 SECURITY_REMAINING_FIXES.md
-
-# Environment variable examples — keep .env.example, ignore real .env files
+pitch/
+ttxt.md
+PRODUCTION_START.sh
+verify_production.sh
+start.sh
+start_server.sh
 backend/.env
 frontend/.env
 frontend/.env.local
@@ -148,3 +152,5 @@ start_server.sh
 
 # Kiro IDE
 .kiro/
+
+# Environment variable examples — keep .env.example, ignore real .env files

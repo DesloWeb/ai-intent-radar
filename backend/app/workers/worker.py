@@ -25,6 +25,8 @@ from app.services.signal_service import get_pending_signals
 from app.services.provider_matching import match_opportunity_to_providers
 from app.services.market_intelligence import compute_market_trends
 from app.services.hn_ingester import ingest_hn_signals as _ingest_hn
+from app.services.google_news_ingester import ingest_google_news_signals as _ingest_gnews
+from app.services.sec_ingester import ingest_sec_signals as _ingest_sec
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,44 @@ def ingest_and_process_hn():
 
 
 # ---------------------------------------------------------------------------
+# Google News ingestion
+# ---------------------------------------------------------------------------
+
+def ingest_from_google_news(dry_run: bool = False):
+    """Pull commercial intent signals from Google News RSS. No key required."""
+    return asyncio.run(
+        _ingest_gnews(
+            max_per_query=10,
+            dry_run=dry_run,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# SEC EDGAR ingestion
+# ---------------------------------------------------------------------------
+
+def ingest_from_sec(dry_run: bool = False):
+    """Pull recent Form D filings from SEC EDGAR — companies that just raised funding."""
+    return asyncio.run(
+        _ingest_sec(
+            count=40,
+            dry_run=dry_run,
+        )
+    )
+
+
+def ingest_all_sources():
+    """Ingest from all sources (HN + Google News + SEC) then run the pipeline."""
+    results = {}
+    results["hn"] = ingest_from_hn()
+    results["google_news"] = ingest_from_google_news()
+    results["sec"] = ingest_from_sec()
+    results["pipeline"] = process_pending_signals()
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Market trends
 # ---------------------------------------------------------------------------
 
@@ -114,7 +154,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Intent Radar worker tasks")
     parser.add_argument(
         "task",
-        choices=["pipeline", "hn", "hn_dry", "hn_and_process", "trends", "all"],
+        choices=["pipeline", "hn", "hn_dry", "hn_and_process", "gnews", "gnews_dry", "sec", "sec_dry", "all", "trends"],
         help="Task to run",
     )
     args = parser.parse_args()
@@ -129,12 +169,15 @@ if __name__ == "__main__":
         print(ingest_from_hn(dry_run=True))
     elif args.task == "hn_and_process":
         print(ingest_and_process_hn())
+    elif args.task == "gnews":
+        print(ingest_from_google_news())
+    elif args.task == "gnews_dry":
+        print(ingest_from_google_news(dry_run=True))
+    elif args.task == "sec":
+        print(ingest_from_sec())
+    elif args.task == "sec_dry":
+        print(ingest_from_sec(dry_run=True))
     elif args.task == "trends":
         print(refresh_market_trends())
     elif args.task == "all":
-        print("Ingesting HN signals...")
-        print(ingest_from_hn())
-        print("Running pipeline...")
-        print(process_pending_signals())
-        print("Refreshing trends...")
-        print(refresh_market_trends())
+        print(ingest_all_sources())
