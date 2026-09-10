@@ -1,12 +1,32 @@
 """Opportunity CRUD and filtering service."""
 from typing import List, Optional, Tuple, Dict
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Opportunity, OpportunityStatus
+
+# Terminal statuses an opportunity can already be in — never overwrite these
+# with EXPIRED, they represent a real outcome, not staleness.
+_TERMINAL_STATUSES = (
+    OpportunityStatus.WON,
+    OpportunityStatus.LOST,
+    OpportunityStatus.DISMISSED,
+    OpportunityStatus.EXPIRED,
+)
+
+# Statuses hidden from the default (no explicit status filter) list view —
+# same convention dashboard.py already uses for its own queries. WON/LOST
+# stay visible by default since they're outcomes a user likely still wants
+# to see; DISMISSED/EXPIRED are the ones that just clutter the list.
+_TERMINAL_HIDDEN_STATUSES = (OpportunityStatus.DISMISSED, OpportunityStatus.EXPIRED)
+
+# Fallback cutoff for opportunities with no extracted deadline — the buying
+# window described in VISION.md is typically 30-90 days, so anything older
+# than this without a firmer signal is treated as stale.
+DEFAULT_MAX_AGE_DAYS = 30
 
 
 async def list_opportunities(
@@ -35,6 +55,11 @@ async def list_opportunities(
         filters.append(Opportunity.intent_score >= min_intent_score)
     if status:
         filters.append(Opportunity.status == status)
+    else:
+        # No explicit status requested — default view excludes dismissed/expired
+        # so stale opportunities don't clutter the list. Pass status=expired (or
+        # dismissed) explicitly to see them.
+        filters.append(Opportunity.status.notin_(_TERMINAL_HIDDEN_STATUSES))
 
     where_clause = and_(*filters) if filters else True
 
@@ -161,3 +186,42 @@ async def get_opportunity_counts(
         "by_urgency": by_urgency,
         "intent_distribution": intent_distribution,
     }
+
+
+async def expire_stale_opportunities(
+    db: AsyncSession,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+) -> Dict[str, int]:
+    """Mark stale opportunities as EXPIRED.
+
+    Two independent conditions, either of which qualifies an opportunity for
+    expiry (never touches WON/LOST/DISMISSED/EXPIRED — those are real outcomes):
+      - deadline has passed (only covers opportunities with an extracted deadline)
+      - created more than `max_age_days` ago, regardless of deadline (catches
+        opportunities where no deadline was ever extracted)
+
+    This is a platform-wide maintenance operation, not scoped to one org —
+    every org's stale opportunities get cleaned up in the same pass.
+    """
+    now = datetime.now(timezone.utc)
+    age_cutoff = now - timedelta(days=max_age_days)
+
+    not_terminal = Opportunity.status.notin_(_TERMINAL_STATUSES)
+    stale = or_(
+        and_(Opportunity.deadline.isnot(None), Opportunity.deadline < now),
+        Opportunity.created_at < age_cutoff,
+    )
+
+    # Count before updating so the caller gets a meaningful number back —
+    # UPDATE's rowcount isn't reliably reported across every async driver.
+    count_query = select(func.count(Opportunity.id)).where(not_terminal, stale)
+    expired_count = (await db.execute(count_query)).scalar() or 0
+
+    if expired_count:
+        await db.execute(
+            update(Opportunity)
+            .where(not_terminal, stale)
+            .values(status=OpportunityStatus.EXPIRED)
+        )
+
+    return {"expired": expired_count, "max_age_days": max_age_days}

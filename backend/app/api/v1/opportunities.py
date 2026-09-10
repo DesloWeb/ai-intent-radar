@@ -6,13 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_role
 from app.models.models import User
 from app.schemas.schemas import (
     OpportunityListResponse,
     OpportunityResponse,
 )
 from app.services.opportunity_service import (
+    DEFAULT_MAX_AGE_DAYS,
+    expire_stale_opportunities,
     get_opportunity_by_id,
     list_opportunities,
 )
@@ -53,6 +55,33 @@ async def list_opps(
     )
 
 
+@router.post("/expire")
+async def expire_opportunities(
+    max_age_days: int = Query(
+        DEFAULT_MAX_AGE_DAYS,
+        ge=1,
+        description="Opportunities older than this with no passed deadline are also expired",
+    ),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("admin", "analyst")),
+):
+    """Mark stale opportunities (deadline passed, or too old with no deadline)
+    as expired. Platform-wide — not scoped to the caller's organization."""
+    from app.services.audit_service import audit
+
+    result = await expire_stale_opportunities(db, max_age_days=max_age_days)
+    await audit(
+        db, user.organization_id, user.id,
+        "opportunity:expire", "opportunity", None,
+        result,
+    )
+    await db.commit()
+    return result
+
+
+# IMPORTANT: this route must stay above /{opportunity_id} — otherwise
+# "/opportunities/expire" would be swallowed by the dynamic route and fail
+# UUID parsing instead of hitting this handler.
 @router.get("/{opportunity_id}", response_model=OpportunityResponse)
 async def get_opportunity(
     opportunity_id: str,

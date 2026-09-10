@@ -25,5 +25,10 @@ jobs:
           curl -s -X POST "${{ secrets.API_URL }}/signals/ingest/all" \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}"
 
+      - name: Expire stale opportunities
+        run: |
+          curl -s -X POST "${{ secrets.API_URL }}/opportunities/expire" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}"
+
       - name: Done
         run: echo "Ingest complete at $(date)"
