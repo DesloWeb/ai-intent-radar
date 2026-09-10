@@ -27,8 +27,13 @@ async def lifespan(app: FastAPI):
     from app.models.models import Country, Base
     from sqlalchemy import select
 
-    async with get_engine().begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Schema is managed by Alembic in production (`alembic upgrade head` runs on
+    # deploy). create_all() only creates missing tables — never adds columns to
+    # existing ones — so relying on it in prod silently masks migration drift.
+    # Keep it for local/dev convenience only.
+    if settings.DEBUG:
+        async with get_engine().begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     async with get_session_factory()() as db:
         result = await db.execute(select(Country).limit(1))
