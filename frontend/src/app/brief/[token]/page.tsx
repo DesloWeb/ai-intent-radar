@@ -45,14 +45,21 @@ export default function PublicBriefPage() {
   });
 
   const respondMutation = useMutation({
-    mutationFn: () => api.respondToBrief(token, {
-      action: action!,
-      provider_name: name,
-      provider_email: email,
-      message: message || undefined,
-    }),
-    onSuccess: () => setSubmitted(true),
+    mutationFn: (vars: { action: 'interested' | 'not_interested'; name?: string; email?: string; message?: string }) =>
+      api.respondToBrief(token, {
+        action: vars.action,
+        provider_name: vars.name,
+        provider_email: vars.email,
+        message: vars.message || undefined,
+      }),
+    onSuccess: (_data, vars) => {
+      setAction(vars.action);
+      setSubmitted(true);
+    },
   });
+
+  const alreadyNotInterested = brief?.status === 'not_interested';
+  const isNotInterested = action === 'not_interested' || alreadyNotInterested;
 
   if (isLoading) {
     return (
@@ -254,90 +261,98 @@ export default function PublicBriefPage() {
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           {submitted || brief.already_responded ? (
             <div className="text-center py-4">
-              <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-              <h2 className="text-base font-semibold text-gray-900 mb-1">Response received</h2>
-              <p className="text-sm text-gray-500">Thank you — the team will be in touch shortly.</p>
+              <CheckCircle className={`w-10 h-10 mx-auto mb-3 ${isNotInterested ? 'text-gray-400' : 'text-emerald-500'}`} />
+              <h2 className="text-base font-semibold text-gray-900 mb-1">
+                {isNotInterested ? 'Noted' : 'Response received'}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {isNotInterested
+                  ? "Thanks for letting us know — we won't follow up on this one."
+                  : 'Thank you — the team will be in touch shortly.'}
+              </p>
+            </div>
+          ) : action === 'interested' ? (
+            <div className="space-y-4">
+              <h2 className="text-base font-semibold text-gray-900 mb-1">Are you interested in this opportunity?</h2>
+              <div className="text-sm font-medium px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700">
+                Great! Tell us about yourself:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Your Name *</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                    placeholder="Jane Smith"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    placeholder="you@company.com"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Message (optional)</label>
+                <textarea
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  rows={3}
+                  placeholder="Tell us about your experience and why you're a good fit..."
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500 resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => respondMutation.mutate({ action: 'interested', name, email, message })}
+                  disabled={!name || !email || respondMutation.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-radar-600 hover:bg-radar-700 text-white font-medium rounded-xl text-sm transition-colors disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                  {respondMutation.isPending ? 'Sending...' : 'Submit Response'}
+                </button>
+                <button
+                  onClick={() => setAction(null)}
+                  className="px-4 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Back
+                </button>
+              </div>
+              {respondMutation.isError && (
+                <p className="text-xs text-red-600">{(respondMutation.error as Error).message}</p>
+              )}
             </div>
           ) : (
             <>
               <h2 className="text-base font-semibold text-gray-900 mb-4">Are you interested in this opportunity?</h2>
-
-              {!action ? (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setAction('interested')}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-sm transition-colors"
-                  >
-                    <ThumbsUp className="w-4 h-4" /> Yes, I'm Interested
-                  </button>
-                  <button
-                    onClick={() => setAction('not_interested')}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-300 hover:bg-gray-50 text-gray-600 font-medium rounded-xl text-sm transition-colors"
-                  >
-                    <ThumbsDown className="w-4 h-4" /> Not for Me
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className={`text-sm font-medium px-3 py-2 rounded-lg ${action === 'interested' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-600'}`}>
-                    {action === 'interested' ? "Great! Tell us about yourself:" : "No problem. Please confirm your details:"}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Your Name *</label>
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        required
-                        placeholder="Jane Smith"
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Email Address *</label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        required
-                        placeholder="you@company.com"
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {action === 'interested' ? 'Message (optional)' : 'Reason (optional)'}
-                    </label>
-                    <textarea
-                      value={message}
-                      onChange={e => setMessage(e.target.value)}
-                      rows={3}
-                      placeholder={action === 'interested' ? 'Tell us about your experience and why you\'re a good fit...' : 'Let us know why this isn\'t a fit (helps us improve matches)'}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-radar-500 resize-none"
-                    />
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => respondMutation.mutate()}
-                      disabled={!name || !email || respondMutation.isPending}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-radar-600 hover:bg-radar-700 text-white font-medium rounded-xl text-sm transition-colors disabled:opacity-50"
-                    >
-                      <Send className="w-4 h-4" />
-                      {respondMutation.isPending ? 'Sending...' : 'Submit Response'}
-                    </button>
-                    <button
-                      onClick={() => setAction(null)}
-                      className="px-4 text-sm text-gray-500 hover:text-gray-700"
-                    >
-                      Back
-                    </button>
-                  </div>
-                  {respondMutation.isError && (
-                    <p className="text-xs text-red-600">{(respondMutation.error as Error).message}</p>
-                  )}
-                </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setAction('interested')}
+                  disabled={respondMutation.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-sm transition-colors disabled:opacity-50"
+                >
+                  <ThumbsUp className="w-4 h-4" /> Yes, I'm Interested
+                </button>
+                <button
+                  onClick={() => respondMutation.mutate({ action: 'not_interested' })}
+                  disabled={respondMutation.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 border border-gray-300 hover:bg-gray-50 text-gray-600 font-medium rounded-xl text-sm transition-colors disabled:opacity-50"
+                >
+                  <ThumbsDown className="w-4 h-4" />
+                  {respondMutation.isPending && respondMutation.variables?.action === 'not_interested' ? 'Sending...' : 'Not for Me'}
+                </button>
+              </div>
+              {respondMutation.isError && (
+                <p className="text-xs text-red-600 mt-3">{(respondMutation.error as Error).message}</p>
               )}
             </>
           )}

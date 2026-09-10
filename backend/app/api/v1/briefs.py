@@ -34,6 +34,19 @@ router = APIRouter(prefix="/briefs", tags=["Provider Briefs"])
 BRIEF_EXPIRY_DAYS = 7
 
 
+def _is_expired(expires_at: datetime) -> bool:
+    """Compare against now(), tolerating a naive datetime from the DB driver.
+
+    Postgres/asyncpg returns timezone-aware datetimes for TIMESTAMPTZ columns,
+    but SQLite (local/dev) returns naive ones even with DateTime(timezone=True)
+    — comparing naive vs aware raises TypeError. Values are always stored as
+    UTC in this codebase, so a naive value can be safely assumed to be UTC.
+    """
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at < datetime.now(timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -98,8 +111,10 @@ class PublicBriefResponse(BaseModel):
 
 class ProviderInterestRequest(BaseModel):
     action: str  # "interested" | "not_interested"
-    provider_name: str
-    provider_email: str
+    # Only required when action == "interested" — a "not interested" click
+    # shouldn't need contact details, see respond_to_brief() below.
+    provider_name: Optional[str] = None
+    provider_email: Optional[str] = None
     message: Optional[str] = None
 
 
@@ -248,7 +263,7 @@ async def get_public_brief(
     if not brief:
         raise HTTPException(status_code=404, detail="Brief not found or expired")
 
-    if brief.expires_at < datetime.now(timezone.utc):
+    if _is_expired(brief.expires_at):
         raise HTTPException(status_code=410, detail="This brief has expired")
 
     # Fetch opportunity
@@ -320,6 +335,9 @@ async def respond_to_brief(
     if payload.action not in ("interested", "not_interested"):
         raise HTTPException(status_code=400, detail="action must be 'interested' or 'not_interested'")
 
+    if payload.action == "interested" and (not payload.provider_name or not payload.provider_email):
+        raise HTTPException(status_code=400, detail="provider_name and provider_email are required when interested")
+
     result = await db.execute(
         select(ProviderBrief).where(ProviderBrief.token == token)
     )
@@ -328,15 +346,17 @@ async def respond_to_brief(
     if not brief:
         raise HTTPException(status_code=404, detail="Brief not found")
 
-    if brief.expires_at < datetime.now(timezone.utc):
+    if _is_expired(brief.expires_at):
         raise HTTPException(status_code=410, detail="This brief has expired")
 
     if brief.status != "pending":
         raise HTTPException(status_code=409, detail="You have already responded to this brief")
 
     brief.status = payload.action
-    brief.provider_name = payload.provider_name
-    brief.provider_email = payload.provider_email
+    # Don't overwrite a name/email already known from the matched provider
+    # record with a blank — a quick "not interested" click sends neither.
+    brief.provider_name = payload.provider_name or brief.provider_name
+    brief.provider_email = payload.provider_email or brief.provider_email
     brief.provider_message = payload.message
     brief.responded_at = datetime.now(timezone.utc)
     await db.commit()

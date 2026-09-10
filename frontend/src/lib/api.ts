@@ -279,7 +279,7 @@ class ApiClient {
     return this.request<import('../types').PublicBrief>(`/briefs/public/${token}`);
   }
 
-  async respondToBrief(token: string, data: { action: string; provider_name: string; provider_email: string; message?: string }) {
+  async respondToBrief(token: string, data: { action: string; provider_name?: string; provider_email?: string; message?: string }) {
     return this.request<{ message: string; status: string }>(`/briefs/public/${token}/respond`, {
       method: 'POST',
       body: JSON.stringify(data),
