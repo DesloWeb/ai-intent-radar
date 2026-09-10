@@ -44,6 +44,7 @@ async def match_opportunity_to_providers(
         providers = all_providers
 
     matches = []
+    new_matches = []
     for provider in providers:
         if provider.provider_type == "individual":
             match_score = _calculate_individual_match(opportunity, provider)
@@ -78,8 +79,14 @@ async def match_opportunity_to_providers(
                 )
                 db.add(match)
                 matches.append(match)
+                new_matches.append(match)
 
     await db.flush()
+    # New rows have server-generated created_at/updated_at (server_default=func.now());
+    # flush() doesn't populate them on the Python object, so refresh before serializing —
+    # otherwise ProviderMatchResponse validation fails on the still-None timestamp.
+    for match in new_matches:
+        await db.refresh(match)
     # Return sorted by score descending
     return sorted(matches, key=lambda m: m.total_score, reverse=True)
 
