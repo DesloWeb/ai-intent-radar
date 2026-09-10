@@ -58,12 +58,26 @@ async def send_brief_email(
         provider_name=provider_name,
         expires_at_label=expires_at_label,
     )
+    text = _render_brief_email_text(
+        brief_url=brief_url,
+        opportunity_title=opportunity_title,
+        opportunity_category=opportunity_category,
+        opportunity_urgency=opportunity_urgency,
+        intent_score=intent_score,
+        why_now=why_now,
+        provider_name=provider_name,
+        expires_at_label=expires_at_label,
+    )
 
     payload = {
         "from": settings.RESEND_FROM_EMAIL,
         "to": [to_email],
         "subject": f"New opportunity match: {opportunity_title}",
         "html": html,
+        # A plain-text alternative alongside HTML is a well-known spam-score
+        # signal — HTML-only mail from a new sending domain gets scrutinized
+        # harder by Gmail/Yahoo spam filters than genuine multipart mail.
+        "text": text,
     }
 
     try:
@@ -215,6 +229,40 @@ def _render_brief_email_html(
 </body>
 </html>
 """
+
+
+def _render_brief_email_text(
+    *,
+    brief_url: str,
+    opportunity_title: str,
+    opportunity_category: str,
+    opportunity_urgency: str,
+    intent_score: float,
+    why_now: Optional[str],
+    provider_name: Optional[str],
+    expires_at_label: Optional[str],
+) -> str:
+    """Plain-text alternative to the HTML email — not just a deliverability
+    signal, also what actually renders for text-only mail clients/readers."""
+    greeting = f"Hi {provider_name}," if provider_name else "Hi,"
+    score_pct = round(intent_score * 100)
+
+    lines = [
+        greeting,
+        "",
+        "You've been matched to a new commercial opportunity based on your profile.",
+        "",
+        f"{opportunity_title}",
+        f"Category: {opportunity_category} | Urgency: {opportunity_urgency} | Intent Score: {score_pct}%",
+    ]
+    if why_now:
+        lines += ["", "Why This Matters Now:", why_now]
+    lines += ["", f"View the full opportunity and respond: {brief_url}"]
+    if expires_at_label:
+        lines += ["", f"This link expires {expires_at_label}."]
+    lines += ["", "-- Intent Radar, Commercial Intelligence Platform"]
+
+    return "\n".join(lines)
 
 
 def _escape(text: Optional[str]) -> str:
