@@ -13,7 +13,7 @@ Individual scoring:
   - Rate fit (25%): hourly rate vs estimated opportunity value
 """
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import Opportunity, Provider, ProviderMatch
@@ -80,6 +80,15 @@ async def match_opportunity_to_providers(
                 db.add(match)
                 matches.append(match)
                 new_matches.append(match)
+
+    # Prune stale matches — providers that no longer qualify (score dropped below
+    # threshold, went inactive, or fell out of the country filter) shouldn't leave
+    # old match rows lying around from a previous run.
+    matched_provider_ids = [m.provider_id for m in matches]
+    prune_stmt = delete(ProviderMatch).where(ProviderMatch.opportunity_id == opportunity.id)
+    if matched_provider_ids:
+        prune_stmt = prune_stmt.where(ProviderMatch.provider_id.notin_(matched_provider_ids))
+    await db.execute(prune_stmt)
 
     await db.flush()
     # New rows have server-generated created_at/updated_at (server_default=func.now());
