@@ -494,6 +494,8 @@ class ProviderBrief(Base, TimestampMixin):
     last_viewed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Whether the brief-link email actually went out via Resend on generation
+    email_sent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         Index("ix_provider_briefs_token", "token"),

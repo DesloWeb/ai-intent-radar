@@ -226,4 +226,5 @@ export interface Brief {
   provider_email?: string;
   provider_message?: string;
   responded_at?: string;
+  email_sent?: boolean;
 }

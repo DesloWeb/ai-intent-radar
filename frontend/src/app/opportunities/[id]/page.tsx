@@ -39,7 +39,7 @@ export default function OpportunityDetailPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const id = params.id as string;
   const [showContactModal, setShowContactModal] = useState(false);
-  const [generatedBriefs, setGeneratedBriefs] = useState<Record<string, string>>({}); // matchId -> public_url
+  const [generatedBriefs, setGeneratedBriefs] = useState<Record<string, { url: string; emailSent: boolean }>>({}); // matchId -> brief result
   const [copiedBrief, setCopiedBrief] = useState<string | null>(null);
 
   // Load existing briefs for this opportunity
@@ -66,7 +66,7 @@ export default function OpportunityDetailPage() {
     mutationFn: (matchId?: string) => api.generateBrief(id, matchId),
     onSuccess: (data, matchId) => {
       const key = matchId || 'general';
-      setGeneratedBriefs(prev => ({ ...prev, [key]: data.public_url }));
+      setGeneratedBriefs(prev => ({ ...prev, [key]: { url: data.public_url, emailSent: !!data.email_sent } }));
       refetchBriefs();
     },
   });
@@ -317,7 +317,7 @@ export default function OpportunityDetailPage() {
               <div className="space-y-3">
                 {(matches ?? []).map((m) => {
                   const briefKey = m.id;
-                  const briefUrl = generatedBriefs[briefKey];
+                  const generated = generatedBriefs[briefKey];
                   return (
                     <div key={m.id} className="p-3 rounded-lg border border-gray-100 bg-gray-50">
                       <div className="grid grid-cols-4 gap-2 mb-2">
@@ -365,24 +365,35 @@ export default function OpportunityDetailPage() {
                         {/* Brief URL / generate button */}
                         <div className="flex items-center gap-2">
                           {(() => {
-                            const activeUrl = briefUrl || briefsByMatch[briefKey]?.public_url;
+                            const existing = briefsByMatch[briefKey];
+                            const activeUrl = generated?.url || existing?.public_url;
+                            // email_sent only comes back from a fresh generate call —
+                            // for a brief loaded from the list, fall back to its own field.
+                            const emailSent = generated ? generated.emailSent : !!existing?.email_sent;
                             if (activeUrl) return (
-                              <>
-                                <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs text-emerald-700 truncate">
-                                  {activeUrl}
+                              <div className="flex-1 flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs text-emerald-700 truncate">
+                                    {activeUrl}
+                                  </div>
+                                  <button
+                                    onClick={async () => {
+                                      await navigator.clipboard.writeText(activeUrl);
+                                      setCopiedBrief(briefKey);
+                                      setTimeout(() => setCopiedBrief(null), 2000);
+                                    }}
+                                    className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                                  >
+                                    {copiedBrief === briefKey ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                    {copiedBrief === briefKey ? 'Copied!' : 'Copy'}
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={async () => {
-                                    await navigator.clipboard.writeText(activeUrl);
-                                    setCopiedBrief(briefKey);
-                                    setTimeout(() => setCopiedBrief(null), 2000);
-                                  }}
-                                  className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                                >
-                                  {copiedBrief === briefKey ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                                  {copiedBrief === briefKey ? 'Copied!' : 'Copy'}
-                                </button>
-                              </>
+                                {emailSent ? (
+                                  <span className="text-[11px] text-emerald-600">✓ Emailed to provider</span>
+                                ) : (
+                                  <span className="text-[11px] text-gray-400">Not emailed — share the link manually</span>
+                                )}
+                              </div>
                             );
                             return (
                               <button

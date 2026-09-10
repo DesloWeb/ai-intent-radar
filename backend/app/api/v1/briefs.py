@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,7 @@ from app.models.models import (
     ProviderMatch,
     User,
 )
+from app.services.email_service import send_brief_email
 
 router = APIRouter(prefix="/briefs", tags=["Provider Briefs"])
 
@@ -71,6 +72,7 @@ class BriefResponse(BaseModel):
     provider_email: Optional[str] = None
     provider_message: Optional[str] = None
     responded_at: Optional[datetime] = None
+    email_sent: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -125,7 +127,6 @@ class ProviderInterestRequest(BaseModel):
 @router.post("", response_model=BriefResponse, status_code=201)
 async def generate_brief(
     payload: BriefCreate,
-    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -169,6 +170,7 @@ async def generate_brief(
     )
 
     # Pre-fill provider contact if we have a match with a known provider
+    provider = None
     if payload.provider_match_id and match:
         prov_result = await db.execute(
             select(Provider).where(Provider.id == match.provider_id)
@@ -176,16 +178,35 @@ async def generate_brief(
         provider = prov_result.scalar_one_or_none()
         if provider:
             brief.provider_name = provider.name
-    db.add(brief)
-    await db.flush()
-    await db.commit()
+            brief.provider_email = provider.email
 
     # Build public URL
-    base_url = str(request.base_url).rstrip("/")
     # For production, use the frontend URL
     import os
     frontend_url = os.getenv("FRONTEND_URL", "https://ai-intent-radar.vercel.app")
     public_url = f"{frontend_url}/brief/{token}"
+
+    # Best-effort: email the provider directly if we have an address on file.
+    # Never blocks or fails brief creation — the link is fully usable on its
+    # own even if this doesn't go out (e.g. RESEND_API_KEY not set yet).
+    email_sent = False
+    if provider and provider.email:
+        email_sent = await send_brief_email(
+            to_email=provider.email,
+            brief_url=public_url,
+            opportunity_title=opportunity.title,
+            opportunity_category=opportunity.category,
+            opportunity_urgency=opportunity.urgency,
+            intent_score=opportunity.intent_score,
+            why_now=opportunity.why_now,
+            provider_name=provider.name,
+            expires_at_label=brief.expires_at.strftime("%B %d, %Y"),
+        )
+    brief.email_sent = email_sent
+
+    db.add(brief)
+    await db.flush()
+    await db.commit()
 
     return BriefResponse(
         id=brief.id,
@@ -199,6 +220,8 @@ async def generate_brief(
         public_url=public_url,
         created_at=brief.created_at,
         provider_name=brief.provider_name,
+        provider_email=brief.provider_email,
+        email_sent=email_sent,
     )
 
 
@@ -240,6 +263,7 @@ async def list_briefs(
             provider_email=b.provider_email,
             provider_message=b.provider_message,
             responded_at=b.responded_at,
+            email_sent=b.email_sent,
         )
         for b, opp_title in rows
     ]

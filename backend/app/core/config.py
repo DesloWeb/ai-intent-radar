@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     ENABLED_COUNTRIES: list[str] = ["US"]
     FRONTEND_URL: str = "https://ai-intent-radar.vercel.app"
 
+    # Email (Resend) — sends the brief link to a matched provider on generation.
+    # Unset by default: brief generation works with or without this configured,
+    # it just skips the email send and the admin shares the link manually.
+    RESEND_API_KEY: Optional[str] = None
+    RESEND_FROM_EMAIL: str = "Intent Radar <notifications@ai-intent-radar.com>"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
