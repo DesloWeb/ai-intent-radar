@@ -30,7 +30,12 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-radar-950 via-radar-900 to-radar-950 text-white">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-radar-900 via-radar-800 to-radar-950 text-white">
+      {/* Soft blue-white glow blended behind the hero */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -top-32 -z-10 h-[560px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(255,255,255,0.22),rgba(96,165,250,0.18)_45%,transparent_75%)]"
+      />
 
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-radar-800 max-w-5xl mx-auto">
