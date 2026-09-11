@@ -50,15 +50,22 @@ async def ingest_signal(
     """Ingest a new signal: normalize, deduplicate, and store."""
     normalized = normalize_signal(raw_signal)
 
-    # Check for duplicates
     dedup_hash = compute_dedup_hash(
         normalized["source"],
         normalized["source_id"],
         normalized["title"],
     )
 
+    # The DB's actual uniqueness constraint (ix_signals_source_source_id) is on
+    # (source, source_id) alone, not on dedup_hash — dedup_hash also folds in
+    # title, so if the same (source, source_id) later produces a different
+    # title, this check must still match or the insert below hits an
+    # IntegrityError that poisons the whole session for the rest of the batch.
     existing = await db.execute(
-        select(Signal).where(Signal.dedup_hash == dedup_hash)
+        select(Signal).where(
+            Signal.source == normalized["source"],
+            Signal.source_id == normalized["source_id"],
+        )
     )
     existing_signal = existing.scalar_one_or_none()
     if existing_signal:

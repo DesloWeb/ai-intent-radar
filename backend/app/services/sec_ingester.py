@@ -96,11 +96,14 @@ async def fetch_recent_form_d(
             updated = updated_el.text or "" if updated_el is not None else ""
             filing_id = id_el.text or "" if id_el is not None else ""
 
-            # Extract company name from title (format: "D - Company Name" or "D/A - Company Name")
-            # Skip amendments (D/A) — only new filings
-            if title.startswith("D/A"):
+            # EDGAR's type=D query param does prefix matching, not exact matching —
+            # it also returns D/A amendments, DFAN14A, DEF 14A, and other unrelated
+            # filing types that happen to start with "D". Only "D - Company Name" is
+            # an actual new Form D filing; reject everything else explicitly rather
+            # than falling through to treating an unknown title as one anyway.
+            if not title.startswith("D - "):
                 continue
-            company_name = title.replace("D - ", "").strip() if title.startswith("D - ") else title
+            company_name = title[len("D - "):].strip()
 
             filings.append({
                 "company_name": company_name,
