@@ -62,9 +62,6 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* Gradient seam: blue → white */}
-      <div className="h-24 bg-gradient-to-b from-radar-950 to-white" aria-hidden="true" />
-
       {/* ── What we do (white) ────────────────────────────────────────────── */}
       <div>
         <section className="max-w-5xl mx-auto px-6 py-16">
@@ -146,10 +143,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* Gradient seam: white → blue */}
-      <div className="h-24 bg-gradient-to-b from-white to-radar-950" aria-hidden="true" />
-
-      {/* ── CTA: solid blue (same as hero), guarantees contrast ──────────── */}
+      {/* ── CTA: solid blue (same as hero) ───────────────────────────────── */}
       <div className="bg-radar-950 text-white">
         <section className="max-w-3xl mx-auto px-6 py-20 text-center">
           <h2 className="text-2xl font-semibold mb-4">Ready to get ahead of the market?</h2>
