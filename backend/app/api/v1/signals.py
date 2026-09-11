@@ -264,27 +264,56 @@ async def ingest_all(
     user: User = Depends(require_role("admin", "analyst")),
 ):
     """
-    Ingest from all sources: HN + Google News + SEC EDGAR, then run the pipeline.
-    This is the recommended way to refresh all signals in one call.
+    Ingest from all sources for this org's enabled countries, then run the
+    pipeline. This is the recommended way to refresh all signals in one call.
+
+    HN and SEC EDGAR are inherently US-only sources (HN has no reliable
+    geo-tagging; SEC EDGAR is the US securities regulator) — they only run
+    if "US" is one of this org's enabled countries. Google News runs once
+    per enabled country that has a query set defined (see
+    google_news_ingester.INTENT_QUERIES) — currently US and NG.
     """
     from app.services.hn_ingester import ingest_hn_signals
-    from app.services.google_news_ingester import ingest_google_news_signals
+    from app.services.google_news_ingester import ingest_google_news_signals, INTENT_QUERIES
     from app.services.sec_ingester import ingest_sec_signals
     from app.services.signal_service import get_pending_signals
     from app.services.intelligence_pipeline import process_signal
-    from app.models.models import SignalStatus
+    from app.models.models import SignalStatus, Organization
     from app.services.audit_service import audit
 
-    hn = await ingest_hn_signals(
-        limit_stories=20, limit_comments_per_thread=20,
-        dry_run=dry_run, organization_id=user.organization_id,
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == user.organization_id)
     )
-    gnews = await ingest_google_news_signals(
-        max_per_query=8, dry_run=dry_run, organization_id=user.organization_id,
-    )
-    sec = await ingest_sec_signals(
-        count=80, dry_run=dry_run, organization_id=user.organization_id,
-    )
+    org = org_result.scalar_one_or_none()
+    enabled_countries = org.enabled_countries if org else ["US"]
+
+    empty_source = {"ingested": 0, "skipped": 0, "errors": 0, "breakdown": {}}
+    if "US" in enabled_countries:
+        hn = await ingest_hn_signals(
+            limit_stories=20, limit_comments_per_thread=20,
+            dry_run=dry_run, organization_id=user.organization_id,
+        )
+        sec = await ingest_sec_signals(
+            count=80, dry_run=dry_run, organization_id=user.organization_id,
+        )
+    else:
+        hn = dict(empty_source)
+        sec = dict(empty_source)
+
+    gnews = {"ingested": 0, "skipped": 0, "errors": 0, "breakdown": {}, "by_country": {}}
+    for country in enabled_countries:
+        if country not in INTENT_QUERIES:
+            continue  # no query set built for this country yet
+        result = await ingest_google_news_signals(
+            max_per_query=8, dry_run=dry_run, organization_id=user.organization_id,
+            country_code=country,
+        )
+        gnews["by_country"][country] = result
+        gnews["ingested"] += result.get("ingested", 0)
+        gnews["skipped"] += result.get("skipped", 0)
+        gnews["errors"] += result.get("errors", 0)
+        for k, v in result.get("breakdown", {}).items():
+            gnews["breakdown"][k] = gnews["breakdown"].get(k, 0) + v
 
     # Run pipeline on all pending signals
     pipeline = {"processed": 0, "created": 0, "rejected": 0, "errors": 0}

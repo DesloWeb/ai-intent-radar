@@ -310,3 +310,15 @@ class CountryUpdate(BaseModel):
     is_enabled: Optional[bool] = None
     signal_sources: Optional[List] = None
     settings: Optional[Dict] = None
+
+
+class OrganizationResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    enabled_countries: List[str]
+
+    model_config = {"from_attributes": True}
+
+
+class OrganizationUpdate(BaseModel):
+    enabled_countries: List[str] = Field(min_length=1)

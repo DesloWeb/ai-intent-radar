@@ -305,6 +305,22 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // Countries / organization target markets
+  async getCountries() {
+    return this.request<import('../types').Country[]>('/countries');
+  }
+
+  async getOrganization() {
+    return this.request<{ id: string; name: string; enabled_countries: string[] }>('/organization');
+  }
+
+  async updateOrganization(enabled_countries: string[]) {
+    return this.request<{ id: string; name: string; enabled_countries: string[] }>('/organization', {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled_countries }),
+    });
+  }
 }
 
 export const api = new ApiClient(API_BASE);

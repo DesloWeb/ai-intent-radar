@@ -20,6 +20,13 @@ export interface Organization {
   created_at: string;
 }
 
+export interface Country {
+  id: number;
+  code: string;
+  name: string;
+  is_enabled: boolean;
+}
+
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;

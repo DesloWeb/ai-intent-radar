@@ -23,32 +23,66 @@ logger = logging.getLogger(__name__)
 
 GNEWS_BASE = "https://news.google.com/rss/search"
 
-# Search queries targeting commercial intent signals
+# Per-country Google News edition params. Nigeria's edition is still English
+# (hl=en-NG), same as US — no translation needed, just a different regional
+# feed and query set tuned to that market's terminology.
+COUNTRY_EDITIONS = {
+    "US": {"hl": "en-US", "gl": "US", "ceid": "US:en"},
+    "NG": {"hl": "en-NG", "gl": "NG", "ceid": "NG:en"},
+}
+
+# Search queries targeting commercial intent signals, per country.
 # Each tuple: (query, signal_type, weight)
-INTENT_QUERIES = [
-    # Direct service/vendor requests
-    ("\"looking for\" contractor OR vendor OR supplier OR consultant US",    "service_request",   1.0),
-    ("\"seeking proposals\" OR \"request for proposal\" OR RFP OR RFQ US",  "procurement",       1.0),
-    ("\"accepting applications\" OR \"taking bids\" US business",            "procurement",       0.9),
+INTENT_QUERIES: dict[str, list[tuple[str, str, float]]] = {
+    "US": [
+        # Direct service/vendor requests
+        ("\"looking for\" contractor OR vendor OR supplier OR consultant US",    "service_request",   1.0),
+        ("\"seeking proposals\" OR \"request for proposal\" OR RFP OR RFQ US",  "procurement",       1.0),
+        ("\"accepting applications\" OR \"taking bids\" US business",            "procurement",       0.9),
 
-    # Business expansion signals
-    ("\"new facility\" OR \"new office\" OR \"expanding to\" US 2026",       "expansion",         0.9),
-    ("\"opening new\" location OR branch OR office US",                      "expansion",         0.8),
-    ("\"new headquarters\" OR \"relocating\" US company",                    "expansion",         0.7),
+        # Business expansion signals
+        ("\"new facility\" OR \"new office\" OR \"expanding to\" US 2026",       "expansion",         0.9),
+        ("\"opening new\" location OR branch OR office US",                      "expansion",         0.8),
+        ("\"new headquarters\" OR \"relocating\" US company",                    "expansion",         0.7),
 
-    # Hiring as buying intent
-    ("company hiring engineers OR developers OR consultants US 2026",        "hiring",            0.8),
-    ("\"rapidly hiring\" OR \"scaling team\" OR \"growing team\" US",        "hiring",            0.8),
+        # Hiring as buying intent
+        ("company hiring engineers OR developers OR consultants US 2026",        "hiring",            0.8),
+        ("\"rapidly hiring\" OR \"scaling team\" OR \"growing team\" US",        "hiring",            0.8),
 
-    # Funding = imminent spend
-    ("startup \"raises\" OR \"raised\" \"million\" US 2026",                 "funding",           0.9),
-    ("\"series A\" OR \"series B\" OR \"seed round\" US funding 2026",       "funding",           1.0),
-    ("\"secured funding\" OR \"new investment\" US company 2026",            "funding",           0.9),
+        # Funding = imminent spend
+        ("startup \"raises\" OR \"raised\" \"million\" US 2026",                 "funding",           0.9),
+        ("\"series A\" OR \"series B\" OR \"seed round\" US funding 2026",       "funding",           1.0),
+        ("\"secured funding\" OR \"new investment\" US company 2026",            "funding",           0.9),
 
-    # Infrastructure / construction
-    ("\"construction contract\" OR \"infrastructure project\" US awarded",   "infrastructure",    0.9),
-    ("\"breaking ground\" OR \"new development\" US commercial 2026",        "infrastructure",    0.8),
-]
+        # Infrastructure / construction
+        ("\"construction contract\" OR \"infrastructure project\" US awarded",   "infrastructure",    0.9),
+        ("\"breaking ground\" OR \"new development\" US commercial 2026",        "infrastructure",    0.8),
+    ],
+    "NG": [
+        # Direct service/vendor requests
+        ("\"looking for\" contractor OR vendor OR supplier Nigeria",             "service_request",   1.0),
+        ("\"request for proposal\" OR RFP OR RFQ OR tender Nigeria",             "procurement",       1.0),
+        ("\"invitation to bid\" OR \"accepting bids\" Nigeria",                  "procurement",       0.9),
+
+        # Business expansion signals
+        ("\"new facility\" OR \"new office\" OR \"expanding to\" Nigeria",       "expansion",         0.9),
+        ("\"opening new\" location OR branch OR office Lagos OR Abuja",          "expansion",         0.8),
+        ("\"new headquarters\" OR \"relocating\" Nigeria company",               "expansion",         0.7),
+
+        # Hiring as buying intent
+        ("company hiring engineers OR developers OR consultants Nigeria 2026",   "hiring",            0.8),
+        ("\"rapidly hiring\" OR \"scaling team\" OR \"growing team\" Nigeria",    "hiring",            0.8),
+
+        # Funding = imminent spend
+        ("Nigeria startup \"raises\" OR \"raised\" funding 2026",                "funding",           0.9),
+        ("\"seed round\" OR \"series A\" Nigeria OR Lagos fintech 2026",         "funding",           1.0),
+        ("\"secured funding\" OR \"new investment\" Nigeria company 2026",       "funding",           0.9),
+
+        # Infrastructure / construction
+        ("\"construction contract\" OR \"infrastructure project\" Nigeria awarded", "infrastructure", 0.9),
+        ("\"breaking ground\" OR \"new development\" Lagos OR Abuja commercial",    "infrastructure", 0.8),
+    ],
+}
 
 # Intent keywords for scoring (same approach as HN ingester)
 HIGH_INTENT_PHRASES = [
@@ -86,13 +120,15 @@ async def fetch_gnews(
     client: httpx.AsyncClient,
     query: str,
     max_results: int = 10,
+    country_code: str = "US",
 ) -> list[dict]:
-    """Fetch articles from Google News RSS for a given query."""
+    """Fetch articles from Google News RSS for a given query and country edition."""
+    edition = COUNTRY_EDITIONS.get(country_code, COUNTRY_EDITIONS["US"])
     params = {
         "q": query,
-        "hl": "en-US",
-        "gl": "US",
-        "ceid": "US:en",
+        "hl": edition["hl"],
+        "gl": edition["gl"],
+        "ceid": edition["ceid"],
     }
     headers = {"User-Agent": "Mozilla/5.0 IntentRadar/1.0 (commercial-intelligence)"}
     try:
@@ -132,14 +168,18 @@ async def ingest_google_news_signals(
     max_per_query: int = 10,
     dry_run: bool = False,
     organization_id=None,
+    country_code: str = "US",
 ) -> dict:
     """
-    Pull commercial intent signals from Google News RSS feeds.
+    Pull commercial intent signals from Google News RSS feeds for one country.
 
     Args:
         max_per_query: Max articles to check per search query
         dry_run: Detect without writing to DB
         organization_id: Org to scope signals to
+        country_code: Which country's edition/query set to use (see
+            COUNTRY_EDITIONS/INTENT_QUERIES) — defaults to "US" and falls
+            back to it if the country has no query set defined yet.
 
     Returns:
         Summary dict with counts
@@ -150,11 +190,12 @@ async def ingest_google_news_signals(
     seen_titles: set[str] = set()  # dedup within this run
 
     signals_to_ingest = []
+    queries = INTENT_QUERIES.get(country_code, INTENT_QUERIES["US"])
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        for query, signal_type, weight in INTENT_QUERIES:
+        for query, signal_type, weight in queries:
             try:
-                articles = await fetch_gnews(client, query, max_results=max_per_query)
+                articles = await fetch_gnews(client, query, max_results=max_per_query, country_code=country_code)
 
                 for article in articles:
                     title = article["title"]
@@ -178,7 +219,7 @@ async def ingest_google_news_signals(
                     payload = {
                         "source": "google_news",
                         "source_id": f"gnews_{hashlib.md5(link.encode()).hexdigest()[:12]}",
-                        "country_code": "US",
+                        "country_code": country_code,
                         "title": title[:500],
                         "description": f"{title}\n\n{desc}"[:2000],
                         "raw_data": {

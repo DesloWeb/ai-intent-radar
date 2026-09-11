@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
 import { Card } from '@/components/ui/Card';
-import { User, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Lock, CheckCircle, AlertCircle, Globe } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
 
   const [fullName, setFullName] = useState('');
@@ -61,6 +62,51 @@ export default function SettingsPage() {
       return;
     }
     passwordMutation.mutate();
+  };
+
+  // Target countries — which markets this org wants ingestion to run for.
+  const isAdmin = user?.role === 'admin';
+  const [countryMsg, setCountryMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+
+  const { data: countries = [] } = useQuery({
+    queryKey: ['countries'],
+    queryFn: () => api.getCountries(),
+    enabled: isAuthenticated,
+  });
+
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => api.getOrganization(),
+    enabled: isAuthenticated,
+  });
+
+  useEffect(() => {
+    if (organization) setSelectedCountries(organization.enabled_countries);
+  }, [organization]);
+
+  const countryMutation = useMutation({
+    mutationFn: () => api.updateOrganization(selectedCountries),
+    onSuccess: () => {
+      setCountryMsg({ type: 'success', text: 'Target countries updated.' });
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+    },
+    onError: (e: Error) => setCountryMsg({ type: 'error', text: e.message || 'Failed to update target countries.' }),
+  });
+
+  const toggleCountry = (code: string) => {
+    setSelectedCountries((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const handleCountrySubmit = () => {
+    setCountryMsg(null);
+    if (selectedCountries.length === 0) {
+      setCountryMsg({ type: 'error', text: 'Select at least one country.' });
+      return;
+    }
+    countryMutation.mutate();
   };
 
   if (authLoading || !isAuthenticated) {
@@ -153,6 +199,55 @@ export default function SettingsPage() {
             >
               {passwordMutation.isPending ? 'Changing...' : 'Change Password'}
             </button>
+          </div>
+        </Card>
+
+        {/* Target Countries */}
+        <Card>
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <Globe className="w-4 h-4" /> Target Countries
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Choose which markets Intent Radar should fetch opportunities from.
+          </p>
+          <div className="space-y-2">
+            {countries.map((country) => (
+              <label
+                key={country.code}
+                className={`flex items-center gap-3 px-3 py-2.5 border border-gray-200 rounded-lg text-sm ${isAdmin ? 'cursor-pointer hover:bg-gray-50' : 'opacity-70'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCountries.includes(country.code)}
+                  onChange={() => toggleCountry(country.code)}
+                  disabled={!isAdmin}
+                  className="w-4 h-4 accent-radar-600"
+                />
+                <span className="font-medium text-gray-700">{country.name}</span>
+                <span className="text-xs text-gray-400 ml-auto">{country.code}</span>
+              </label>
+            ))}
+            {countries.length === 0 && (
+              <p className="text-xs text-gray-400">No countries configured yet.</p>
+            )}
+            {!isAdmin && (
+              <p className="text-xs text-gray-400">Only admins can change target countries.</p>
+            )}
+            {countryMsg && (
+              <div className={`flex items-center gap-2 text-xs p-2 rounded-lg ${countryMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                {countryMsg.type === 'success' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {countryMsg.text}
+              </div>
+            )}
+            {isAdmin && (
+              <button
+                onClick={handleCountrySubmit}
+                disabled={countryMutation.isPending}
+                className="px-4 py-2 bg-radar-600 hover:bg-radar-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+              >
+                {countryMutation.isPending ? 'Saving...' : 'Save Countries'}
+              </button>
+            )}
           </div>
         </Card>
       </div>

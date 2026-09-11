@@ -152,6 +152,7 @@ def create_app() -> FastAPI:
         providers,
         feedback,
         countries,
+        organization,
         market_intelligence,
         briefs,
     )
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     application.include_router(feedback.router, prefix=settings.API_V1_PREFIX)
     application.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
     application.include_router(countries.router, prefix=settings.API_V1_PREFIX)
+    application.include_router(organization.router, prefix=settings.API_V1_PREFIX)
     application.include_router(market_intelligence.router, prefix=settings.API_V1_PREFIX)
     application.include_router(briefs.router, prefix=settings.API_V1_PREFIX)
 
