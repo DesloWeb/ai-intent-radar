@@ -68,11 +68,6 @@ export default function LoginPage() {
               Register
             </Link>
           </p>
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500">
-              Demo: <strong>demo@radar.ai</strong> / <strong>demo1234</strong>
-            </p>
-          </div>
           <div className="mt-4 flex justify-center gap-4 text-xs text-gray-400">
             <Link href="/about" className="hover:text-gray-600">About</Link>
             <Link href="/contact" className="hover:text-gray-600">Contact</Link>
