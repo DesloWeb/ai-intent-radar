@@ -23,7 +23,7 @@ export default function PrivacyPage() {
           <span className="text-sm font-bold">Intent Radar</span>
         </Link>
         <div className="flex items-center gap-6 text-sm text-radar-300">
-          <Link href="/about" className="hover:text-white transition-colors">About</Link>
+          <Link href="/" className="hover:text-white transition-colors">Home</Link>
           <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
           <Link href="/privacy" className="text-white font-medium">Privacy</Link>
           <Link href="/auth/login" className="bg-radar-600 hover:bg-radar-500 text-white px-4 py-1.5 rounded-lg transition-colors">
@@ -234,7 +234,7 @@ export default function PrivacyPage() {
       {/* Footer */}
       <footer className="border-t border-radar-800 py-6 px-6 text-center text-xs text-radar-400">
         <div className="flex items-center justify-center gap-6 mb-2">
-          <Link href="/about" className="hover:text-white transition-colors">About</Link>
+          <Link href="/" className="hover:text-white transition-colors">Home</Link>
           <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
           <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
         </div>
