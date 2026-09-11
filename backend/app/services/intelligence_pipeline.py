@@ -6,7 +6,9 @@ Processes signals through:
 3. Scoring & validation
 4. Explanation generation
 5. Opportunity creation
+6. Provider matching
 """
+import logging
 from typing import Optional
 import uuid
 from datetime import datetime, timezone
@@ -21,6 +23,8 @@ from app.models.models import (
     UrgencyLevel,
 )
 from app.services.ai_provider import get_ai_provider
+
+logger = logging.getLogger("pipeline")
 
 
 async def process_signal(db: AsyncSession, signal: Signal) -> Optional[Signal]:
@@ -89,6 +93,21 @@ async def process_signal(db: AsyncSession, signal: Signal) -> Optional[Signal]:
         opportunity = _create_opportunity_from_signal(signal, classification, extracted)
         db.add(opportunity)
         await db.flush()
+
+        # Step 5: Auto-match providers now that the opportunity exists, so an
+        # admin sees pre-scored, ranked providers immediately instead of having
+        # to click "Run Matching" manually. Best-effort and isolated from the
+        # outer exception handler below — a matching failure must not mark an
+        # otherwise-successful opportunity's signal as ERROR, and the manual
+        # "Run Matching" button remains available as a fallback either way.
+        if opportunity.organization_id:
+            try:
+                from app.services.provider_matching import match_opportunity_to_providers
+                await match_opportunity_to_providers(db, opportunity)
+            except Exception as e:
+                logger.warning(
+                    "Auto-matching failed for opportunity %s: %s", opportunity.id, e
+                )
 
         signal.processed_at = datetime.now(timezone.utc)
         await db.flush()
