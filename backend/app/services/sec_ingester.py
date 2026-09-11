@@ -39,6 +39,31 @@ RELEVANT_EXEMPTIONS = {
     "04a",   # Section 4(a)(6) — crowdfunding
 }
 
+# Form D filers are overwhelmingly investment vehicles raising capital to
+# invest, not operating companies about to hire or buy services — the two
+# look identical in the raw filing data. These name patterns reliably flag
+# a fund/SPV/co-investment vehicle rather than a real operating business.
+# Checked against actual production filings before landing on this list —
+# every fund-type name observed (e.g. "Redbud Opportunity, LP", "Zulu Pods
+# SPV I a Series of Phase Shift Ventures Master LLC", "Kinetic Fund IV, a
+# Series of SecondMarket Growth, LLC") matches at least one of these.
+INVESTMENT_VEHICLE_MARKERS = (
+    "fund",
+    " lp", ", lp", "l.p.",
+    "spv",
+    "co-invest",
+    "co invest",
+    "a series of",
+    "capital partners",
+    "acquisition corp",
+)
+
+
+def _looks_like_investment_vehicle(company_name: str) -> bool:
+    name = company_name.lower()
+    return any(marker in name for marker in INVESTMENT_VEHICLE_MARKERS)
+
+
 # Industry categories to focus on (exclude real estate funds, oil royalties etc.)
 FOCUS_INDUSTRIES = {
     "Technology",
@@ -104,6 +129,12 @@ async def fetch_recent_form_d(
             if not title.startswith("D - "):
                 continue
             company_name = title[len("D - "):].strip()
+
+            # Skip funds/SPVs/co-investment vehicles — a Form D from one of
+            # these means someone raised money to invest it, not that an
+            # operating business is about to hire or buy services.
+            if _looks_like_investment_vehicle(company_name):
+                continue
 
             filings.append({
                 "company_name": company_name,
