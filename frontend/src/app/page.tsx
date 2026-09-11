@@ -30,9 +30,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-white">
 
-      {/* ── Dark band: nav + hero ───────────────────────────────────────── */}
+      {/* ── Hero: solid blue, guarantees contrast for the white text ─────── */}
       <div className="bg-radar-950 text-white">
         <nav className="flex items-center justify-between px-6 py-4 border-b border-radar-800 max-w-5xl mx-auto">
           <Link href="/" className="flex items-center gap-2">
@@ -62,8 +62,11 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ── White band: what we do ──────────────────────────────────────── */}
-      <div className="bg-white">
+      {/* Gradient seam: blue → white */}
+      <div className="h-24 bg-gradient-to-b from-radar-950 to-white" aria-hidden="true" />
+
+      {/* ── What we do (white) ────────────────────────────────────────────── */}
+      <div>
         <section className="max-w-5xl mx-auto px-6 py-16">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
@@ -95,10 +98,10 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ── Light blue band: what we are not ────────────────────────────── */}
-      <div className="bg-radar-50">
+      {/* ── What we are not (sits in the white zone) ─────────────────────── */}
+      <div>
         <section className="max-w-3xl mx-auto px-6 py-16">
-          <div className="bg-white border border-radar-100 rounded-2xl p-8 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">What Intent Radar is not</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
@@ -123,8 +126,8 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ── White band: market stats ─────────────────────────────────────── */}
-      <div className="bg-white">
+      {/* ── Market stats (sits in the white zone) ────────────────────────── */}
+      <div>
         <section className="max-w-5xl mx-auto px-6 py-16">
           <h2 className="text-xl font-semibold text-gray-900 mb-6 text-center">Where we operate</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
@@ -143,11 +146,14 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ── Bold blue band: CTA ──────────────────────────────────────────── */}
-      <div className="bg-radar-600 text-white">
+      {/* Gradient seam: white → blue */}
+      <div className="h-24 bg-gradient-to-b from-white to-radar-950" aria-hidden="true" />
+
+      {/* ── CTA: solid blue (same as hero), guarantees contrast ──────────── */}
+      <div className="bg-radar-950 text-white">
         <section className="max-w-3xl mx-auto px-6 py-20 text-center">
           <h2 className="text-2xl font-semibold mb-4">Ready to get ahead of the market?</h2>
-          <p className="text-radar-100 text-sm mb-8">
+          <p className="text-radar-300 text-sm mb-8">
             Create your account and start seeing commercial intent in real time.
           </p>
           <Link
@@ -159,7 +165,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* ── Dark band: footer ────────────────────────────────────────────── */}
+      {/* ── Footer (same blue) ────────────────────────────────────────────── */}
       <footer className="bg-radar-950 py-6 px-6 text-center text-xs text-radar-400">
         <div className="flex items-center justify-center gap-6 mb-2">
           <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
