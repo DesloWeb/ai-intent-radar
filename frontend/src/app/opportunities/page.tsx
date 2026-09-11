@@ -86,7 +86,7 @@ export default function OpportunitiesPage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <select
           value={category || ''}
           onChange={(e) => { setCategory(e.target.value || undefined); setPage(1); }}
@@ -117,7 +117,7 @@ export default function OpportunitiesPage() {
         </select>
         {data && (
           <span className="text-sm text-gray-500 ml-auto">
-            {data.total} opportunity{data.total !== 1 ? 'ies' : ''}
+            {data.total} opportunit{data.total !== 1 ? 'ies' : 'y'}
           </span>
         )}
       </div>

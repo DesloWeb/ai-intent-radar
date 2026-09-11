@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="flex items-start justify-between mb-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-1">
         <Header
           title="Intelligence Dashboard"
           subtitle="Real-time commercial intent intelligence across your markets"
@@ -76,7 +76,7 @@ export default function DashboardPage() {
         <button
           onClick={() => refreshMutation.mutate()}
           disabled={refreshMutation.isPending}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 disabled:opacity-50 transition-colors mt-1 flex-shrink-0"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 disabled:opacity-50 transition-colors sm:mt-1 flex-shrink-0 self-start"
         >
           {refreshDone ? (
             <CheckCircle className="w-4 h-4 text-emerald-500" />
